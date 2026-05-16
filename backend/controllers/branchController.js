@@ -61,3 +61,19 @@ exports.updateBranchAI = async (req, res) => {
     res.status(400).json({ message: error.message });
   }
 };
+
+exports.getAllBranches = async (req, res) => {
+  try {
+    let query = {};
+    if (req.user.role !== 'admin') {
+      const Business = require('../models/Business');
+      const businesses = await Business.find({ owner: req.user._id });
+      const businessIds = businesses.map(b => b._id);
+      query = { business: { $in: businessIds } };
+    }
+    const branches = await Branch.find(query).populate('business', 'name');
+    res.json(branches);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};

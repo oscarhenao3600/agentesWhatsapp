@@ -2,55 +2,32 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Users, 
-  MessageSquare, 
-  Settings, 
-  LogOut, 
   Plus, 
-  BarChart3,
   Bot,
   UserPlus,
-  ShoppingBag
+  ShoppingBag,
+  ArrowRight,
+  TrendingUp,
+  MessageSquare,
+  Building2
 } from 'lucide-react';
 import axios from 'axios';
 import BusinessModal from '../components/BusinessModal';
 import UserModal from '../components/UserModal';
 
 const Dashboard = () => {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [businesses, setBusinesses] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('resumen'); // 'resumen', 'clientes', 'pedidos'
-  const [orders, setOrders] = useState([]);
-
-  useEffect(() => {
-    if (activeTab === 'pedidos' && businesses.length > 0) {
-      fetchBusinessOrders(businesses[0]._id); // Por defecto el primer negocio
-    }
-  }, [activeTab]);
-
-  const fetchBusinessOrders = async (bizId) => {
-    try {
-      const config = { headers: { Authorization: `Bearer ${user.token}` } };
-      const { data } = await axios.get(`/api/order/business/${bizId}`, config);
-      setOrders(data);
-    } catch (error) {
-      console.error('Error fetching orders:', error);
-    }
-  };
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [selectedBusiness, setSelectedBusiness] = useState(null);
 
   useEffect(() => {
-    if (!user) {
-      navigate('/login');
-      return;
-    }
     fetchData();
-    if (user.role === 'admin') fetchUsers();
+    if (user?.role === 'admin') fetchUsers();
   }, [user]);
 
   const fetchData = async () => {
@@ -76,213 +53,109 @@ const Dashboard = () => {
     }
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
-
   const openCreateModal = () => {
     setSelectedBusiness(null);
     setIsModalOpen(true);
   };
 
-  const openEditModal = (biz) => {
-    setSelectedBusiness(biz);
-    setIsModalOpen(true);
-  };
-
-  if (loading) return <div className="container" style={{ textAlign: 'center', marginTop: '100px' }}>Cargando Panel...</div>;
+  if (loading) return <div style={{ textAlign: 'center', marginTop: '100px' }}>Cargando Panel...</div>;
 
   return (
-    <div className="container">
-      <div style={{ display: 'flex', gap: '30px', marginTop: '20px' }}>
-        {/* Sidebar Mini */}
-        <aside style={{ width: '200px' }}>
-          <nav style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <button 
-              onClick={() => setActiveTab('resumen')}
-              className="btn-secondary" 
-              style={{ 
-                display: 'flex', alignItems: 'center', gap: '10px', padding: '12px', 
-                background: activeTab === 'resumen' ? 'var(--accent-primary)' : 'none', 
-                color: activeTab === 'resumen' ? 'white' : 'inherit' 
-              }}
-            >
-              <BarChart3 size={18} /> Resumen
-            </button>
-            <button 
-              onClick={() => setActiveTab('pedidos')}
-              className="btn-secondary" 
-              style={{ 
-                display: 'flex', alignItems: 'center', gap: '10px', padding: '12px', 
-                background: activeTab === 'pedidos' ? 'var(--accent-primary)' : 'none', 
-                color: activeTab === 'pedidos' ? 'white' : 'inherit' 
-              }}
-            >
-              <ShoppingBag size={18} /> Pedidos
-            </button>
-            <button className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px', background: 'none' }}>
-              <MessageSquare size={18} /> Chats
-            </button>
-            {user?.role === 'admin' && (
-              <button 
-                onClick={() => setActiveTab('clientes')}
-                className="btn-secondary" 
-                style={{ 
-                  display: 'flex', alignItems: 'center', gap: '10px', padding: '12px', 
-                  background: activeTab === 'clientes' ? 'var(--accent-primary)' : 'none', 
-                  color: activeTab === 'clientes' ? 'white' : 'inherit' 
-                }}
-              >
-                <Users size={18} /> Clientes
+    <>
+      <header style={{ marginBottom: '40px' }}>
+        <h1 style={{ fontSize: '32px', marginBottom: '8px' }}>Bienvenido, <span className="gradient-text">{user?.username}</span></h1>
+        <p style={{ color: 'var(--text-secondary)' }}>Aquí tienes un resumen de tus operaciones actuales.</p>
+      </header>
+
+      {/* Stats Overview */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px', marginBottom: '40px' }}>
+        <div className="glass-card" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <div style={{ background: 'rgba(99, 102, 241, 0.1)', padding: '15px', borderRadius: '15px' }}>
+            <Building2 className="gradient-text" size={24} />
+          </div>
+          <div>
+            <span style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>Negocios</span>
+            <h3 style={{ fontSize: '24px' }}>{businesses.length}</h3>
+          </div>
+        </div>
+        <div className="glass-card" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <div style={{ background: 'rgba(16, 185, 129, 0.1)', padding: '15px', borderRadius: '15px' }}>
+            <ShoppingBag style={{ color: '#10b981' }} size={24} />
+          </div>
+          <div>
+            <span style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>Pedidos Hoy</span>
+            <h3 style={{ fontSize: '24px' }}>0</h3>
+          </div>
+        </div>
+        <div className="glass-card" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <div style={{ background: 'rgba(245, 158, 11, 0.1)', padding: '15px', borderRadius: '15px' }}>
+            <MessageSquare style={{ color: '#f59e0b' }} size={24} />
+          </div>
+          <div>
+            <span style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>Mensajes IA</span>
+            <h3 style={{ fontSize: '24px' }}>0</h3>
+          </div>
+        </div>
+        <div className="glass-card" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <div style={{ background: 'rgba(139, 92, 246, 0.1)', padding: '15px', borderRadius: '15px' }}>
+            <TrendingUp style={{ color: '#8b5cf6' }} size={24} />
+          </div>
+          <div>
+            <span style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>Conversión</span>
+            <h3 style={{ fontSize: '24px' }}>0%</h3>
+          </div>
+        </div>
+      </div>
+
+      <section>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
+          <h2 style={{ fontSize: '24px' }}>Tus Negocios</h2>
+          {user?.role === 'admin' && (
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button onClick={() => setIsUserModalOpen(true)} className="btn-secondary">
+                <UserPlus size={18} /> Nuevo Cliente
               </button>
-            )}
-            <button onClick={handleLogout} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px', background: 'none', color: 'var(--danger)', marginTop: '40px' }}>
-              <LogOut size={18} /> Salir
-            </button>
-          </nav>
-        </aside>
+              <button onClick={openCreateModal} className="btn-primary">
+                <Plus size={18} /> Nuevo Negocio
+              </button>
+            </div>
+          )}
+        </div>
 
-        {/* Main Content */}
-        <main style={{ flex: 1 }}>
-          {activeTab === 'resumen' ? (
-            <>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-                <div>
-                  <h2 style={{ fontSize: '28px' }}>Panel de {user?.role === 'admin' ? 'Administrador' : 'Cliente'}</h2>
-                  <p style={{ color: 'var(--text-secondary)' }}>Bienvenido, {user?.username}</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '25px' }}>
+          {businesses.map((biz) => (
+            <div key={biz._id} className="glass-card" style={{ padding: '30px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '20px' }}>
+                <div style={{ background: 'var(--accent-soft)', padding: '12px', borderRadius: '16px' }}>
+                  <Bot size={28} className="gradient-text" />
                 </div>
-                {user?.role === 'admin' && (
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                    <button onClick={() => setIsUserModalOpen(true)} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <UserPlus size={18} /> Nuevo Cliente
-                    </button>
-                    <button onClick={openCreateModal} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <Plus size={18} /> Vincular Negocio
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
-                {businesses.map((biz) => (
-                  <div key={biz._id} className="glass-card" style={{ position: 'relative' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '15px' }}>
-                      <div style={{ background: 'rgba(249, 115, 22, 0.1)', padding: '10px', borderRadius: '12px' }}>
-                        <Bot size={24} className="gradient-text" />
-                      </div>
-                      <h3 style={{ fontSize: '18px' }}>{biz.name}</h3>
-                    </div>
-                    <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '15px' }}>
-                      {biz.description || 'Sin descripción'}
-                    </p>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Propietario: {biz.owner?.username}</span>
-                      <button 
-                        onClick={() => navigate(`/business/${biz._id}/branches`)} 
-                        className="btn-primary" 
-                        style={{ padding: '8px 16px', fontSize: '13px' }}
-                      >
-                        Gestionar Sucursales
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : activeTab === 'pedidos' ? (
-            <>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
                 <div>
-                  <h2 style={{ fontSize: '28px' }}>Pedidos Recientes</h2>
-                  <p style={{ color: 'var(--text-secondary)' }}>Últimos pedidos capturados por la IA en todos tus negocios</p>
+                  <h3 style={{ fontSize: '20px' }}>{biz.name}</h3>
+                  <span className="badge badge-success" style={{ fontSize: '10px' }}>Activo</span>
                 </div>
               </div>
+              
+              <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '25px', minHeight: '42px' }}>
+                {biz.description || 'Sin descripción detallada del negocio.'}
+              </p>
 
-              <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                  <thead>
-                    <tr style={{ background: 'rgba(0,0,0,0.05)', borderBottom: '1px solid var(--border-color)' }}>
-                      <th style={{ padding: '15px' }}>Cliente</th>
-                      <th style={{ padding: '15px' }}>Sucursal</th>
-                      <th style={{ padding: '15px' }}>Total</th>
-                      <th style={{ padding: '15px' }}>Estado</th>
-                      <th style={{ padding: '15px' }}>Fecha</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {orders.length === 0 ? (
-                      <tr>
-                        <td colSpan="5" style={{ padding: '30px', textAlign: 'center' }}>No hay pedidos registrados aún.</td>
-                      </tr>
-                    ) : (
-                      orders.map(order => (
-                        <tr key={order._id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                          <td style={{ padding: '15px', fontWeight: '600' }}>{order.customerPhone}</td>
-                          <td style={{ padding: '15px' }}>{order.branch?.name}</td>
-                          <td style={{ padding: '15px' }}>${order.total?.toLocaleString()}</td>
-                          <td style={{ padding: '15px' }}>
-                            <span style={{ 
-                              background: 'var(--success)', // Simplificado para el dashboard
-                              color: 'var(--text-primary)', 
-                              padding: '2px 8px', 
-                              borderRadius: '4px', 
-                              fontSize: '12px',
-                              textTransform: 'capitalize'
-                            }}>
-                              {order.status}
-                            </span>
-                          </td>
-                          <td style={{ padding: '15px', fontSize: '12px', color: 'var(--text-secondary)' }}>
-                            {new Date(order.createdAt).toLocaleDateString()}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          ) : (
-            <>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-                <div>
-                  <h2 style={{ fontSize: '28px' }}>Gestión de Clientes</h2>
-                  <p style={{ color: 'var(--text-secondary)' }}>Lista de usuarios con acceso al sistema</p>
+              <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Propietario</span>
+                  <span style={{ fontSize: '14px', fontWeight: '600' }}>{biz.owner?.username || 'Sistema'}</span>
                 </div>
-                <button onClick={() => setIsUserModalOpen(true)} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <UserPlus size={18} /> Crear Usuario
+                <button 
+                  onClick={() => navigate(`/business/${biz._id}/branches`)} 
+                  className="btn-primary" 
+                  style={{ padding: '10px 16px' }}
+                >
+                  Configurar <ArrowRight size={16} />
                 </button>
               </div>
-
-              <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                  <thead>
-                    <tr style={{ background: 'rgba(0,0,0,0.05)', borderBottom: '1px solid var(--border-color)' }}>
-                      <th style={{ padding: '15px' }}>Usuario</th>
-                      <th style={{ padding: '15px' }}>Rol</th>
-                      <th style={{ padding: '15px' }}>ID</th>
-                      <th style={{ padding: '15px' }}>Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {allUsers.map(u => (
-                      <tr key={u._id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                        <td style={{ padding: '15px', fontWeight: '600' }}>{u.username}</td>
-                        <td style={{ padding: '15px' }}><span style={{ background: 'var(--success)', color: 'var(--text-primary)', padding: '2px 8px', borderRadius: '4px', fontSize: '12px' }}>{u.role}</span></td>
-                        <td style={{ padding: '15px', fontSize: '12px', color: 'var(--text-secondary)' }}>{u._id}</td>
-                        <td style={{ padding: '15px' }}>
-                           <button onClick={() => { setSelectedBusiness(null); setIsModalOpen(true); }} className="btn-secondary" style={{ fontSize: '12px', padding: '5px 10px' }}>Asignar Negocio</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
-        </main>
-      </div>
+            </div>
+          ))}
+        </div>
+      </section>
 
       <BusinessModal 
         isOpen={isModalOpen} 
@@ -295,10 +168,10 @@ const Dashboard = () => {
       <UserModal 
         isOpen={isUserModalOpen} 
         onClose={() => setIsUserModalOpen(false)} 
-        adminToken={user.token}
+        adminToken={user?.token}
         onSave={fetchUsers}
       />
-    </div>
+    </>
   );
 };
 

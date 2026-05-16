@@ -49,11 +49,11 @@ const BranchManagement = () => {
     }
   };
 
-  if (loading) return <div className="container" style={{ textAlign: 'center', marginTop: '100px' }}>Cargando Sucursales...</div>;
+  if (loading) return <div style={{ textAlign: 'center', marginTop: '100px' }}>Cargando Sucursales...</div>;
 
   return (
-    <div className="container">
-      <button onClick={() => navigate('/dashboard')} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
+    <>
+      <button onClick={() => navigate('/dashboard')} className="btn-secondary" style={{ marginBottom: '20px' }}>
         <ArrowLeft size={18} /> Volver al Panel
       </button>
 
@@ -62,7 +62,7 @@ const BranchManagement = () => {
           <h2 style={{ fontSize: '32px' }}>Sucursales de {business?.name}</h2>
           <p style={{ color: 'var(--text-secondary)' }}>Gestiona los números de WhatsApp y la IA por cada sede</p>
         </div>
-        <button onClick={() => setIsModalOpen(true)} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <button onClick={() => setIsModalOpen(true)} className="btn-primary">
           <Plus size={18} /> Nueva Sucursal
         </button>
       </div>
@@ -126,7 +126,7 @@ const BranchManagement = () => {
         user={user}
         onSave={fetchBranches}
       />
-    </div>
+    </>
   );
 };
 
