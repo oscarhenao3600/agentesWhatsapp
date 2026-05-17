@@ -28,12 +28,27 @@ const generateDynamicResponse = async (aiConfig, userMessage, history = []) => {
   }
 
   const basePrompt = aiConfig?.basePrompt || 'Eres un asistente virtual amable.';
-  const systemInstruction = `
-    Actúa como un asistente para el negocio. Instrucciones: ${basePrompt}
-    
-    Catálogo/Menú o información disponible (usa esto para responder):
-    ${aiConfig?.menuContent || 'No hay menú específico provisto.'}
-    
+  
+  let categoryInstructions = '';
+  if (aiConfig?.businessType === 'hotel') {
+    categoryInstructions = `
+    IMPORTANTE: Si detectas que el usuario está confirmando una reservación (ej: fechas de estadía, número de huéspedes, tipo de glamping/habitación):
+    1. Genera tu respuesta amigable normalmente.
+    2. AL FINAL de tu respuesta, añade un bloque JSON entre etiquetas <RESERVATION_JSON> y </RESERVATION_JSON> con la siguiente estructura:
+    {
+      "detected": true,
+      "customerName": "Nombre del huésped si lo menciona",
+      "checkIn": "Fecha checkIn (formato YYYY-MM-DD o YYYY-MM-DD HH:mm)",
+      "checkOut": "Fecha checkOut (formato YYYY-MM-DD o YYYY-MM-DD HH:mm)",
+      "guestsCount": 1,
+      "roomType": "Nombre del tipo de habitación, glamping, o cabaña elegida",
+      "total": 0,
+      "notes": "observaciones, peticiones especiales o extras"
+    }
+    Si no hay una reservación claramente confirmada por el usuario, no incluyas el bloque JSON.
+    `;
+  } else {
+    categoryInstructions = `
     IMPORTANTE: Si detectas que el usuario está confirmando un pedido con productos específicos:
     1. Genera tu respuesta amigable normalmente.
     2. AL FINAL de tu respuesta, añade un bloque JSON entre etiquetas <ORDER_JSON> y </ORDER_JSON> con la siguiente estructura:
@@ -44,6 +59,16 @@ const generateDynamicResponse = async (aiConfig, userMessage, history = []) => {
       "deliveryAddress": "si se menciona"
     }
     Si no hay un pedido claro, no incluyas el bloque JSON.
+    `;
+  }
+
+  const systemInstruction = `
+    Actúa como un asistente para el negocio. Instrucciones: ${basePrompt}
+    
+    Catálogo/Menú o información disponible (usa esto para responder):
+    ${aiConfig?.menuContent || 'No hay menú específico provisto.'}
+    
+    ${categoryInstructions}
   `;
 
   try {

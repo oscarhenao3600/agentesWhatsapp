@@ -43,9 +43,10 @@ const handleIncomingMessage = async (from, phoneNumberId, messageText, messageId
     // Llamada al motor dinámico de IA (Gemini, OpenAI, o DeepSeek)
     const rawResponse = await generateDynamicResponse(aiConfig, messageText, history);
 
-    // 6. Extraer JSON de pedido si existe
+    // 6. Extraer JSON de pedido o reservación si existe
     let cleanResponse = rawResponse;
     let orderData = null;
+    let reservationData = null;
 
     if (rawResponse.includes('<ORDER_JSON>')) {
       const match = rawResponse.match(/<ORDER_JSON>([\s\S]*?)<\/ORDER_JSON>/);
@@ -58,6 +59,17 @@ const handleIncomingMessage = async (from, phoneNumberId, messageText, messageId
           console.error('Error parseando JSON de pedido:', e);
         }
       }
+    } else if (rawResponse.includes('<RESERVATION_JSON>')) {
+      const match = rawResponse.match(/<RESERVATION_JSON>([\s\S]*?)<\/RESERVATION_JSON>/);
+      if (match && match[1]) {
+        try {
+          reservationData = JSON.parse(match[1].trim());
+          // Limpiar la respuesta para el usuario (quitar el bloque JSON)
+          cleanResponse = rawResponse.replace(/<RESERVATION_JSON>[\s\S]*?<\/RESERVATION_JSON>/, '').trim();
+        } catch (e) {
+          console.error('Error parseando JSON de reservación:', e);
+        }
+      }
     }
 
     // 7. Guardar mensajes en la base de datos
@@ -66,7 +78,7 @@ const handleIncomingMessage = async (from, phoneNumberId, messageText, messageId
     conversation.lastInteraction = Date.now();
     await conversation.save();
 
-    // 8. Si hay un pedido detectado, guardarlo
+    // 8. Si hay un pedido o reservación detectada, guardarla
     if (orderData && orderData.detected) {
       let commissionAmount = 0;
       if (branch.business && typeof branch.business.commission === 'number') {
@@ -81,10 +93,40 @@ const handleIncomingMessage = async (from, phoneNumberId, messageText, messageId
         deliveryAddress: orderData.deliveryAddress,
         status: 'pending',
         commissionStatus: 'pending',
-        commissionAmount: commissionAmount
+        commissionAmount: commissionAmount,
+        orderType: 'order'
       });
       await newOrder.save();
       console.log('Nuevo pedido registrado:', newOrder._id);
+    } else if (reservationData && reservationData.detected) {
+      let commissionAmount = 0;
+      if (branch.business && typeof branch.business.commission === 'number') {
+        commissionAmount = ((reservationData.total || 0) * branch.business.commission) / 100;
+      }
+
+      const newReservation = new Order({
+        branch: branch._id,
+        customerPhone: from,
+        customerName: reservationData.customerName || '',
+        items: [{
+          name: `Reserva: ${reservationData.roomType || 'Habitación/Glamping'}`,
+          quantity: 1,
+          price: reservationData.total || 0,
+          total: reservationData.total || 0
+        }],
+        total: reservationData.total || 0,
+        status: 'pending',
+        commissionStatus: 'pending',
+        commissionAmount: commissionAmount,
+        orderType: 'reservation',
+        checkIn: reservationData.checkIn ? new Date(reservationData.checkIn) : null,
+        checkOut: reservationData.checkOut ? new Date(reservationData.checkOut) : null,
+        guestsCount: reservationData.guestsCount || 1,
+        roomType: reservationData.roomType || 'Habitación/Glamping',
+        notes: reservationData.notes || ''
+      });
+      await newReservation.save();
+      console.log('Nueva reservación registrada:', newReservation._id);
     }
 
     // 9. Enviar respuesta real a WhatsApp vía Meta API

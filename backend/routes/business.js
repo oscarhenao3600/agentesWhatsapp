@@ -122,4 +122,58 @@ router.patch('/:id/commission', protect, authorize('admin'), async (req, res) =>
   }
 });
 
+// @desc    Obtener negocio por ID
+// @route   GET /api/business/:id
+// @access  Private
+router.get('/:id', protect, async (req, res) => {
+  try {
+    const business = await Business.findById(req.params.id).populate('owner', 'username');
+    if (!business) {
+      return res.status(404).json({ message: 'Negocio no encontrado' });
+    }
+
+    // Verificar permisos: Admin o el dueño del negocio
+    if (req.user.role !== 'admin' && business.owner._id.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'No estás autorizado para ver este negocio' });
+    }
+
+    res.json(business);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @desc    Eliminar negocio (Solo Admin)
+// @route   DELETE /api/business/:id
+// @access  Private/Admin
+router.delete('/:id', protect, authorize('admin'), async (req, res) => {
+  try {
+    const businessId = req.params.id;
+    const business = await Business.findById(businessId);
+    if (!business) {
+      return res.status(404).json({ message: 'Negocio no encontrado' });
+    }
+
+    // Eliminar en cascada todas las sucursales del negocio y sus configuraciones de IA
+    const Branch = require('../models/Branch');
+    const BranchAIConfig = require('../models/BranchAIConfig');
+
+    const branches = await Branch.find({ business: businessId });
+    const branchIds = branches.map(b => b._id);
+
+    // 1. Eliminar configuraciones de IA de las sucursales
+    await BranchAIConfig.deleteMany({ branch: { $in: branchIds } });
+
+    // 2. Eliminar sucursales
+    await Branch.deleteMany({ business: businessId });
+
+    // 3. Eliminar el negocio
+    await Business.findByIdAndDelete(businessId);
+
+    res.json({ message: 'Negocio y todas sus sucursales asociadas eliminados correctamente' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 module.exports = router;

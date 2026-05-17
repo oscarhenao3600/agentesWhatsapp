@@ -26,6 +26,7 @@ const AIConfiguration = () => {
     aiModel: 'gemini-1.5-pro',
     apiKey: '',
     temperature: 0.7,
+    businessType: 'other',
     personality: 'friendly',
     basePrompt: '',
     menuContent: '',
@@ -222,6 +223,21 @@ const AIConfiguration = () => {
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
               <Bot size={24} className="gradient-text" />
               <h3 style={{ fontSize: '20px' }}>Comportamiento y Reglas</h3>
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>Categoría / Tipo de Negocio</label>
+              <select 
+                className="input-field" 
+                value={config.businessType}
+                onChange={(e) => setConfig({ ...config, businessType: e.target.value })}
+              >
+                <option value="restaurant">Restaurante (Pedidos de comida)</option>
+                <option value="hotel">Hotel / Glamping (Reservaciones y estadías)</option>
+                <option value="retail">Comercio / Ventas (Venta de productos)</option>
+                <option value="services">Servicios (Citas y agendas)</option>
+                <option value="other">Otro / Genérico</option>
+              </select>
             </div>
 
             <div style={{ marginBottom: '20px' }}>

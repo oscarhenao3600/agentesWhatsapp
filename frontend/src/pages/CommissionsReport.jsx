@@ -49,7 +49,13 @@ const CommissionsReport = () => {
       const config = { headers: { Authorization: `Bearer ${user.token}` } };
       const endpoint = user.role === 'admin' ? '/api/business' : '/api/business/me';
       const { data } = await axios.get(endpoint, config);
-      setBusinesses(data);
+      const list = Array.isArray(data) ? data : [data];
+      setBusinesses(list);
+      
+      // Auto-seleccionar si hay exactamente un negocio (cliente)
+      if (list.length > 0 && list[0] && list[0]._id) {
+        setFilters(prev => ({ ...prev, businessId: list[0]._id }));
+      }
     } catch (error) {
       console.error('Error fetching businesses:', error);
     }

@@ -14,44 +14,122 @@ import { useAuth } from '../context/AuthContext';
 
 const Chats = () => {
   const { user } = useAuth();
+  const [branches, setBranches] = useState([]);
+  const [selectedBranchId, setSelectedBranchId] = useState('');
   const [conversations, setConversations] = useState([]);
   const [selectedChat, setSelectedChat] = useState(null);
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadingChats, setLoadingChats] = useState(false);
+  const [sending, setSending] = useState(false);
 
-  // Mock data for initial preview as requested
+  // 1. Cargar las sucursales al montar el componente
   useEffect(() => {
-    // Simulando carga de chats
-    setTimeout(() => {
-      setConversations([
-        {
-          _id: '1',
-          customerNumber: '+573001234567',
-          lastMessage: '¿A qué hora cierran hoy?',
-          time: '10:30 AM',
-          unread: 2,
-          emotionalState: 'happy',
-          messages: [
-            { role: 'user', content: 'Hola, me gustaría saber si tienen mesa disponible.' },
-            { role: 'assistant', content: '¡Hola! Claro que sí. ¿Para cuántas personas sería?' },
-            { role: 'user', content: '¿A qué hora cierran hoy?' }
-          ]
-        },
-        {
-          _id: '2',
-          customerNumber: '+573119876543',
-          lastMessage: 'Gracias por la información.',
-          time: 'Ayer',
-          unread: 0,
-          emotionalState: 'neutral',
-          messages: []
-        }
-      ]);
-      setLoading(false);
-    }, 800);
+    fetchBranches();
   }, []);
 
-  if (loading) return <div style={{ textAlign: 'center', marginTop: '100px' }}>Cargando Conversaciones...</div>;
+  // 2. Cargar los chats cuando cambie la sucursal seleccionada
+  useEffect(() => {
+    if (selectedBranchId) {
+      fetchConversations(selectedBranchId);
+    } else {
+      setConversations([]);
+      setSelectedChat(null);
+    }
+  }, [selectedBranchId]);
+
+  // Polling automático cada 5 segundos para actualizar mensajes entrantes
+  useEffect(() => {
+    let interval;
+    if (selectedBranchId) {
+      interval = setInterval(() => {
+        refreshConversations(selectedBranchId);
+      }, 5000);
+    }
+    return () => clearInterval(interval);
+  }, [selectedBranchId, selectedChat]);
+
+  const fetchBranches = async () => {
+    setLoading(true);
+    try {
+      const config = { headers: { Authorization: `Bearer ${user.token}` } };
+      const { data } = await axios.get('/api/branch', config);
+      setBranches(data);
+      if (data.length > 0) {
+        setSelectedBranchId(data[0]._id);
+      }
+    } catch (error) {
+      console.error('Error fetching branches:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchConversations = async (branchId) => {
+    setLoadingChats(true);
+    try {
+      const config = { headers: { Authorization: `Bearer ${user.token}` } };
+      const { data } = await axios.get(`/api/chat/${branchId}`, config);
+      setConversations(data);
+    } catch (error) {
+      console.error('Error fetching conversations:', error);
+    } finally {
+      setLoadingChats(false);
+    }
+  };
+
+  const refreshConversations = async (branchId) => {
+    try {
+      const config = { headers: { Authorization: `Bearer ${user.token}` } };
+      const { data } = await axios.get(`/api/chat/${branchId}`, config);
+      setConversations(data);
+      
+      // Actualizar el chat seleccionado actualmente para ver nuevos mensajes en vivo
+      if (selectedChat) {
+        const updatedChat = data.find(c => c._id === selectedChat._id);
+        if (updatedChat) {
+          setSelectedChat(updatedChat);
+        }
+      }
+    } catch (error) {
+      console.error('Error refreshing conversations:', error);
+    }
+  };
+
+  const handleSendManual = async (e) => {
+    e.preventDefault();
+    if (!message.trim() || !selectedChat || !selectedBranchId) return;
+
+    setSending(true);
+    try {
+      const config = { headers: { Authorization: `Bearer ${user.token}` } };
+      const payload = {
+        customerNumber: selectedChat.customerNumber,
+        message: message.trim()
+      };
+
+      const { data } = await axios.post(`/api/chat/${selectedBranchId}/send`, payload, config);
+      
+      if (data.success) {
+        setMessage('');
+        // Recargar chats
+        fetchConversations(selectedBranchId);
+      }
+    } catch (error) {
+      console.error('Error sending manual message:', error);
+      alert('Error al enviar el mensaje de WhatsApp');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const formatTime = (dateStr) => {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    return date.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+  };
+
+  if (loading) return <div style={{ textAlign: 'center', marginTop: '100px', color: 'var(--text-secondary)' }}>Cargando Sucursales...</div>;
 
   return (
     <div className="chats-container">
@@ -59,6 +137,25 @@ const Chats = () => {
       <div className="chats-sidebar">
         <div className="sidebar-header">
           <h2>Mensajes</h2>
+          
+          {/* Selector de Sucursal */}
+          <div style={{ marginBottom: '15px' }}>
+            <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '5px' }}>Sucursal</label>
+            <select
+              className="input-field"
+              value={selectedBranchId}
+              onChange={(e) => setSelectedBranchId(e.target.value)}
+              style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', height: '42px', padding: '0 10px' }}
+            >
+              <option value="">Selecciona una sucursal</option>
+              {branches.map(b => (
+                <option key={b._id} value={b._id}>
+                  {b.business?.name ? `${b.business.name} - ${b.name}` : b.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <div className="search-box">
             <Search size={18} />
             <input type="text" className="input-field" placeholder="Buscar conversación..." />
@@ -66,27 +163,35 @@ const Chats = () => {
         </div>
 
         <div className="chats-list">
-          {conversations.map(chat => (
-            <div 
-              key={chat._id} 
-              className={`chat-item ${selectedChat?._id === chat._id ? 'active' : ''}`}
-              onClick={() => setSelectedChat(chat)}
-            >
-              <div className="avatar">
-                <User size={20} />
-              </div>
-              <div className="chat-info">
-                <div className="chat-name-row">
-                  <span className="chat-name">{chat.customerNumber}</span>
-                  <span className="chat-time">{chat.time}</span>
+          {loadingChats ? (
+            <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-secondary)' }}>Cargando chats...</div>
+          ) : conversations.length === 0 ? (
+            <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-secondary)' }}>No hay chats activos.</div>
+          ) : (
+            conversations.map(chat => {
+              const lastMsg = chat.messages[chat.messages.length - 1];
+              return (
+                <div 
+                  key={chat._id} 
+                  className={`chat-item ${selectedChat?._id === chat._id ? 'active' : ''}`}
+                  onClick={() => setSelectedChat(chat)}
+                >
+                  <div className="avatar">
+                    <User size={20} />
+                  </div>
+                  <div className="chat-info">
+                    <div className="chat-name-row">
+                      <span className="chat-name">{chat.customerNumber}</span>
+                      <span className="chat-time">{formatTime(chat.lastInteraction)}</span>
+                    </div>
+                    <div className="chat-last-msg">
+                      <p>{lastMsg ? lastMsg.content : 'Sin mensajes'}</p>
+                    </div>
+                  </div>
                 </div>
-                <div className="chat-last-msg">
-                  <p>{chat.lastMessage}</p>
-                  {chat.unread > 0 && <span className="unread-badge">{chat.unread}</span>}
-                </div>
-              </div>
-            </div>
-          ))}
+              );
+            })
+          )}
         </div>
       </div>
 
@@ -101,7 +206,7 @@ const Chats = () => {
                 </div>
                 <div>
                   <h3>{selectedChat.customerNumber}</h3>
-                  <span className="status">En línea (IA Activa)</span>
+                  <span className="status">IA Activa (Monitoreando)</span>
                 </div>
               </div>
               <div className="header-actions">
@@ -112,37 +217,38 @@ const Chats = () => {
 
             <div className="chat-messages">
               {selectedChat.messages.map((msg, i) => (
-                <div key={i} className={`message-wrapper ${msg.role}`}>
+                <div key={i} className={`message-wrapper ${msg.role === 'user' ? 'user' : 'assistant'}`}>
                   <div className="message-bubble">
                     <p>{msg.content}</p>
-                    <span className="msg-time">10:35 AM</span>
+                    <span className="msg-time">{formatTime(msg.timestamp)}</span>
                   </div>
                 </div>
               ))}
             </div>
 
-            <div className="chat-input-area">
-              <button className="icon-btn"><Paperclip size={20} /></button>
-              <button className="icon-btn"><Smile size={20} /></button>
+            <form onSubmit={handleSendManual} className="chat-input-area">
+              <button type="button" className="icon-btn"><Paperclip size={20} /></button>
+              <button type="button" className="icon-btn"><Smile size={20} /></button>
               <div className="input-wrapper">
                 <input 
                   type="text" 
                   className="input-field"
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  placeholder="Escribe un mensaje..." 
+                  placeholder="Escribe un mensaje de intervención manual..." 
+                  disabled={sending}
                 />
               </div>
-              <button className="send-btn">
+              <button type="submit" className="send-btn" disabled={sending || !message.trim()}>
                 <Send size={20} />
               </button>
-            </div>
+            </form>
           </>
         ) : (
           <div className="empty-chat">
             <MessageSquare size={64} className="gradient-text" />
             <h3>Selecciona una conversación</h3>
-            <p>Monitorea las interacciones de la IA con tus clientes en tiempo real.</p>
+            <p>Monitorea las interacciones de la IA con tus clientes en tiempo real e interviene si es necesario.</p>
           </div>
         )}
       </div>

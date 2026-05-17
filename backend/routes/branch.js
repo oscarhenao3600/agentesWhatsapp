@@ -5,7 +5,8 @@ const {
   getBusinessBranches, 
   getBranchDetails, 
   updateBranchAI,
-  getAllBranches
+  getAllBranches,
+  deleteBranch
 } = require('../controllers/branchController');
 const { protect } = require('../middleware/auth');
 
@@ -14,5 +15,6 @@ router.get('/', protect, getAllBranches);
 router.get('/business/:businessId', protect, getBusinessBranches);
 router.get('/:id', protect, getBranchDetails);
 router.put('/:id/ai-config', protect, updateBranchAI);
+router.delete('/:id', protect, deleteBranch);
 
 module.exports = router;

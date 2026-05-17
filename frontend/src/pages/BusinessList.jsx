@@ -8,7 +8,8 @@ import {
   MoreVertical,
   ArrowRight,
   ExternalLink,
-  Bot
+  Bot,
+  Trash2
 } from 'lucide-react';
 import axios from 'axios';
 import BusinessModal from '../components/BusinessModal';
@@ -35,6 +36,20 @@ const BusinessList = () => {
     } catch (error) {
       console.error('Error fetching businesses:', error);
       setLoading(false);
+    }
+  };
+
+  const handleDeleteBusiness = async (id, name) => {
+    if (window.confirm(`¿Estás seguro de que deseas eliminar el negocio "${name}"? Esta acción eliminará todas las sucursales y configuraciones de IA asociadas de forma permanente.`)) {
+      try {
+        const config = { headers: { Authorization: `Bearer ${user.token}` } };
+        await axios.delete(`/api/business/${id}`, config);
+        alert('Negocio eliminado correctamente');
+        fetchBusinesses();
+      } catch (error) {
+        console.error('Error deleting business:', error);
+        alert(error.response?.data?.message || 'Error al eliminar el negocio');
+      }
     }
   };
 
@@ -67,9 +82,20 @@ const BusinessList = () => {
                   <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>ID: {biz._id.slice(-6)}</span>
                 </div>
               </div>
-              <button className="btn-secondary" style={{ padding: '8px' }}>
-                <MoreVertical size={16} />
-              </button>
+              {user.role === 'admin' ? (
+                <button 
+                  onClick={() => handleDeleteBusiness(biz._id, biz.name)}
+                  className="btn-secondary" 
+                  style={{ padding: '8px', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)' }}
+                  title="Eliminar Negocio"
+                >
+                  <Trash2 size={16} />
+                </button>
+              ) : (
+                <button className="btn-secondary" style={{ padding: '8px' }}>
+                  <MoreVertical size={16} />
+                </button>
+              )}
             </div>
 
             <p style={{ fontSize: '14px', color: 'var(--text-secondary)', minHeight: '42px' }}>

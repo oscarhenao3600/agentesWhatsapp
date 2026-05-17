@@ -8,7 +8,8 @@ import {
   Phone, 
   Zap,
   Settings,
-  MoreVertical
+  MoreVertical,
+  Trash2
 } from 'lucide-react';
 import axios from 'axios';
 import BranchModal from '../components/BranchModal';
@@ -46,6 +47,20 @@ const BranchManagement = () => {
       setBusiness(data);
     } catch (error) {
       console.error('Error fetching business details:', error);
+    }
+  };
+
+  const handleDeleteBranch = async (id, name) => {
+    if (window.confirm(`¿Estás seguro de que deseas eliminar la sucursal "${name}"?`)) {
+      try {
+        const config = { headers: { Authorization: `Bearer ${user.token}` } };
+        await axios.delete(`/api/branch/${id}`, config);
+        alert('Sucursal eliminada correctamente');
+        fetchBranches();
+      } catch (error) {
+        console.error('Error deleting branch:', error);
+        alert(error.response?.data?.message || 'Error al eliminar la sucursal');
+      }
     }
   };
 
@@ -110,8 +125,13 @@ const BranchManagement = () => {
                 >
                   <Settings size={16} style={{ marginRight: '8px' }} /> Configurar IA
                 </button>
-                <button className="btn-secondary" style={{ padding: '10px' }}>
-                  <MoreVertical size={18} />
+                <button 
+                  onClick={() => handleDeleteBranch(branch._id, branch.name)}
+                  className="btn-secondary" 
+                  style={{ padding: '10px', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)' }}
+                  title="Eliminar Sucursal"
+                >
+                  <Trash2 size={18} />
                 </button>
               </div>
             </div>

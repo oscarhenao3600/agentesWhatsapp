@@ -48,7 +48,16 @@ const orderSchema = new mongoose.Schema({
     default: 0
   },
   deliveryAddress: String,
-  notes: String
+  notes: String,
+  orderType: {
+    type: String,
+    enum: ['order', 'reservation'],
+    default: 'order'
+  },
+  checkIn: Date,
+  checkOut: Date,
+  guestsCount: Number,
+  roomType: String
 }, {
   timestamps: true
 });

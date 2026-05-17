@@ -81,8 +81,8 @@ const OrdersList = () => {
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
         <div>
-          <h2 style={{ fontSize: '32px' }}>Pedidos Recibidos</h2>
-          <p style={{ color: 'var(--text-secondary)' }}>Gestiona los pedidos capturados automáticamente por la IA</p>
+          <h2 style={{ fontSize: '32px' }}>Pedidos y Reservaciones</h2>
+          <p style={{ color: 'var(--text-secondary)' }}>Gestiona los pedidos y reservas capturados automáticamente por la IA</p>
         </div>
         <div className="glass-card" style={{ padding: '10px 20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
           <ShoppingBag className="gradient-text" />
@@ -136,35 +136,75 @@ const OrdersList = () => {
                   </div>
                 </div>
 
-                {/* Detalle Productos */}
+                {/* Detalle Productos o Reservación */}
                 <div style={{ flex: '2', minWidth: '300px', borderLeft: '1px solid var(--border-color)', paddingLeft: '20px' }}>
-                  <h4 style={{ marginBottom: '10px', fontSize: '16px' }}>Detalle del Pedido</h4>
-                  <table style={{ width: '100%', fontSize: '14px' }}>
-                    <thead>
-                      <tr style={{ color: 'var(--text-secondary)', textAlign: 'left' }}>
-                        <th>Producto</th>
-                        <th>Cant.</th>
-                        <th style={{ textAlign: 'right' }}>Precio</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {order.items.map((item, i) => (
-                        <tr key={i}>
-                          <td style={{ padding: '4px 0' }}>{item.name}</td>
-                          <td>x{item.quantity}</td>
-                          <td style={{ textAlign: 'right' }}>${item.price?.toLocaleString()}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot>
-                      <tr>
-                        <td colSpan="2" style={{ paddingTop: '15px', fontWeight: '700', fontSize: '18px' }}>TOTAL</td>
-                        <td style={{ paddingTop: '15px', textAlign: 'right', fontWeight: '700', fontSize: '18px' }} className="gradient-text">
+                  {order.orderType === 'reservation' ? (
+                    <div>
+                      <h4 style={{ marginBottom: '15px', fontSize: '16px', color: 'var(--accent-primary)', fontWeight: '700' }}>Detalles de Reservación</h4>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', fontSize: '14px', marginBottom: '15px' }}>
+                        <div>
+                          <span style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '12px' }}>Check-In</span>
+                          <strong style={{ fontSize: '15px' }}>{order.checkIn ? new Date(order.checkIn).toLocaleString() : 'No especificado'}</strong>
+                        </div>
+                        <div>
+                          <span style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '12px' }}>Check-Out</span>
+                          <strong style={{ fontSize: '15px' }}>{order.checkOut ? new Date(order.checkOut).toLocaleString() : 'No especificado'}</strong>
+                        </div>
+                        <div>
+                          <span style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '12px' }}>Huéspedes</span>
+                          <strong style={{ fontSize: '15px' }}>{order.guestsCount || 1} Persona(s)</strong>
+                        </div>
+                        <div>
+                          <span style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '12px' }}>Tipo de Habitación / Glamping</span>
+                          <strong style={{ fontSize: '15px', color: 'var(--accent-secondary)' }}>{order.roomType || 'Habitación Standard'}</strong>
+                        </div>
+                      </div>
+                      
+                      {order.notes && (
+                        <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '10px', borderRadius: '8px', borderLeft: '3px solid var(--accent-primary)', marginBottom: '15px', fontSize: '13px' }}>
+                          <span style={{ display: 'block', fontWeight: '600', marginBottom: '2px', color: 'var(--text-secondary)' }}>Observaciones:</span>
+                          {order.notes}
+                        </div>
+                      )}
+                      
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px dashed var(--border-color)', paddingTop: '12px' }}>
+                        <span style={{ fontWeight: '700', fontSize: '18px' }}>VALOR TOTAL</span>
+                        <span style={{ fontWeight: '700', fontSize: '18px' }} className="gradient-text">
                           ${order.total?.toLocaleString()}
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <h4 style={{ marginBottom: '10px', fontSize: '16px' }}>Detalle del Pedido</h4>
+                      <table style={{ width: '100%', fontSize: '14px' }}>
+                        <thead>
+                          <tr style={{ color: 'var(--text-secondary)', textAlign: 'left' }}>
+                            <th>Producto</th>
+                            <th>Cant.</th>
+                            <th style={{ textAlign: 'right' }}>Precio</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {order.items.map((item, i) => (
+                            <tr key={i}>
+                              <td style={{ padding: '4px 0' }}>{item.name}</td>
+                              <td>x{item.quantity}</td>
+                              <td style={{ textAlign: 'right' }}>${item.price?.toLocaleString()}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr>
+                            <td colSpan="2" style={{ paddingTop: '15px', fontWeight: '700', fontSize: '18px' }}>TOTAL</td>
+                            <td style={{ paddingTop: '15px', textAlign: 'right', fontWeight: '700', fontSize: '18px' }} className="gradient-text">
+                              ${order.total?.toLocaleString()}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  )}
                 </div>
 
                 {/* Acciones */}

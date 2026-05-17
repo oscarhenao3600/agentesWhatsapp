@@ -23,6 +23,7 @@ app.use('/api/branch', require('./routes/branch'));
 app.use('/api/order', require('./routes/order'));
 app.use('/api/whatsapp', require('./routes/whatsapp'));
 app.use('/api/reports', require('./routes/reports'));
+app.use('/api/chat', require('./routes/chat'));
 
 const PORT = process.env.PORT || 5000;
 

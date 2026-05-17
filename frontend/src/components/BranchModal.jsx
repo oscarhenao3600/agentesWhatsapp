@@ -9,7 +9,8 @@ const BranchModal = ({ isOpen, onClose, businessId, user, onSave }) => {
     whatsappNumberId: '',
     whatsappVerifyToken: '',
     accessToken: '',
-    basePrompt: ''
+    basePrompt: '',
+    businessType: 'restaurant'
   });
   const [loading, setLoading] = useState(false);
 
@@ -29,7 +30,8 @@ const BranchModal = ({ isOpen, onClose, businessId, user, onSave }) => {
         whatsappNumberId: '',
         whatsappVerifyToken: '',
         accessToken: '',
-        basePrompt: ''
+        basePrompt: '',
+        businessType: 'restaurant'
       });
     } catch (error) {
       console.error('Error creating branch:', error);
@@ -61,6 +63,21 @@ const BranchModal = ({ isOpen, onClose, businessId, user, onSave }) => {
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               />
+            </div>
+
+            <div style={{ marginBottom: '15px', gridColumn: '1 / -1' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>Categoría / Tipo de Negocio</label>
+              <select 
+                className="input-field" 
+                value={formData.businessType}
+                onChange={(e) => setFormData({ ...formData, businessType: e.target.value })}
+              >
+                <option value="restaurant">Restaurante (Pedidos de comida)</option>
+                <option value="hotel">Hotel / Glamping (Reservaciones y estadías)</option>
+                <option value="retail">Comercio / Ventas (Venta de productos)</option>
+                <option value="services">Servicios (Citas y agendas)</option>
+                <option value="other">Otro / Genérico</option>
+              </select>
             </div>
 
             <div style={{ marginBottom: '15px' }}>
