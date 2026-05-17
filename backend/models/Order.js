@@ -38,6 +38,15 @@ const orderSchema = new mongoose.Schema({
     enum: ['pending', 'confirmed', 'preparing', 'ready', 'delivered', 'cancelled'],
     default: 'pending'
   },
+  commissionStatus: {
+    type: String,
+    enum: ['pending', 'paid'],
+    default: 'pending'
+  },
+  commissionAmount: {
+    type: Number,
+    default: 0
+  },
   deliveryAddress: String,
   notes: String
 }, {

@@ -5,18 +5,22 @@ const Branch = require('../models/Branch');
 
 // @desc    Verificación del Webhook (Meta requiere esto al configurar)
 // @route   GET /api/whatsapp/webhook
-router.get('/webhook', (req, res) => {
+router.get('/webhook', async (req, res) => {
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
 
   if (mode && token) {
-    if (mode === 'subscribe' && token === process.env.WHATSAPP_VERIFY_TOKEN) {
-      console.log('Webhook Verificado');
-      res.status(200).send(challenge);
-    } else {
-      res.sendStatus(403);
+    if (mode === 'subscribe') {
+      // Buscar si el token pertenece a alguna sucursal o si es el global de respaldo
+      const branch = await Branch.findOne({ whatsappVerifyToken: token });
+      
+      if (branch || token === process.env.WHATSAPP_VERIFY_TOKEN) {
+        console.log(`Webhook Verificado - Token: ${token.substring(0, 5)}...`);
+        return res.status(200).send(challenge);
+      }
     }
+    res.sendStatus(403);
   }
 });
 

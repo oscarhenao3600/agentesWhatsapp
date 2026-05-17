@@ -51,11 +51,19 @@ exports.getBranchDetails = async (req, res) => {
 
 exports.updateBranchAI = async (req, res) => {
   try {
-    const aiConfig = await BranchAIConfig.findOneAndUpdate(
-      { branch: req.params.id },
-      req.body,
-      { new: true, runValidators: true }
-    );
+    let aiConfig = await BranchAIConfig.findOne({ branch: req.params.id });
+    
+    if (!aiConfig) {
+      // Si no existe, lo creamos
+      aiConfig = new BranchAIConfig({ branch: req.params.id, ...req.body });
+    } else {
+      // Actualizar campos
+      Object.keys(req.body).forEach(key => {
+        aiConfig[key] = req.body[key];
+      });
+    }
+
+    await aiConfig.save();
     res.json(aiConfig);
   } catch (error) {
     res.status(400).json({ message: error.message });

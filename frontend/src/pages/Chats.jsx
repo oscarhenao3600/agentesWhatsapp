@@ -61,7 +61,7 @@ const Chats = () => {
           <h2>Mensajes</h2>
           <div className="search-box">
             <Search size={18} />
-            <input type="text" placeholder="Buscar conversación..." />
+            <input type="text" className="input-field" placeholder="Buscar conversación..." />
           </div>
         </div>
 
@@ -127,9 +127,10 @@ const Chats = () => {
               <div className="input-wrapper">
                 <input 
                   type="text" 
-                  placeholder="Escribe un mensaje..." 
+                  className="input-field"
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
+                  placeholder="Escribe un mensaje..." 
                 />
               </div>
               <button className="send-btn">

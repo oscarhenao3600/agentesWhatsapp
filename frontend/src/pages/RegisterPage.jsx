@@ -44,6 +44,7 @@ const RegisterPage = () => {
               <input
                 type="text"
                 placeholder="Elige un nombre de usuario"
+                className="input-field"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 style={{ paddingLeft: '40px' }}
@@ -59,6 +60,7 @@ const RegisterPage = () => {
               <input
                 type="password"
                 placeholder="••••••••"
+                className="input-field"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 style={{ paddingLeft: '40px' }}
@@ -74,6 +76,7 @@ const RegisterPage = () => {
               <input
                 type="password"
                 placeholder="••••••••"
+                className="input-field"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 style={{ paddingLeft: '40px' }}

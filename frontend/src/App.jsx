@@ -14,6 +14,7 @@ import BusinessList from './pages/BusinessList';
 import GlobalBranchesList from './pages/GlobalBranchesList';
 import UsersList from './pages/UsersList';
 
+import CommissionsReport from './pages/CommissionsReport';
 import Layout from './components/Layout';
 
 function App() {
@@ -43,6 +44,7 @@ function App() {
           <Route path="/chats" element={<Layout><Chats /></Layout>} />
           <Route path="/users" element={<Layout><UsersList /></Layout>} />
           <Route path="/ai-config" element={<Layout><GlobalBranchesList /></Layout>} />
+          <Route path="/reports/commissions" element={<Layout><CommissionsReport /></Layout>} />
           
           {/* Ruta por defecto */}
           <Route path="/" element={<Navigate to="/login" />} />

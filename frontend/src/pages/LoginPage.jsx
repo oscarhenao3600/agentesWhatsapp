@@ -38,6 +38,7 @@ const LoginPage = () => {
               <input
                 type="text"
                 placeholder="oscarhenao"
+                className="input-field"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 style={{ paddingLeft: '40px' }}
@@ -53,6 +54,7 @@ const LoginPage = () => {
               <input
                 type="password"
                 placeholder="••••••••"
+                className="input-field"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 style={{ paddingLeft: '40px' }}

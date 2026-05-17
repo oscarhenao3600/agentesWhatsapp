@@ -61,6 +61,12 @@ const Sidebar = () => {
       roles: ['admin', 'client']
     },
     { 
+      label: 'Reportes y Comisiones', 
+      icon: <ShoppingBag size={20} />, 
+      path: '/reports/commissions', 
+      roles: ['admin', 'client']
+    },
+    { 
       label: 'Usuarios', 
       icon: <Users size={20} />, 
       path: '/users', 

@@ -1,4 +1,4 @@
-const { generateResponse } = require('../services/gemini');
+const { generateDynamicResponse } = require('../services/aiService');
 const { sendTextMessage, markAsRead } = require('../services/metaService');
 const Branch = require('../models/Branch');
 const BranchAIConfig = require('../models/BranchAIConfig');
@@ -12,7 +12,7 @@ const Order = require('../models/Order');
 const handleIncomingMessage = async (from, phoneNumberId, messageText, messageId) => {
   try {
     // ... (previous branch and config finding)
-    const branch = await Branch.findOne({ whatsappNumberId: phoneNumberId });
+    const branch = await Branch.findOne({ whatsappNumberId: phoneNumberId }).populate('business');
     if (!branch) {
       console.error(`Sucursal no encontrada para el ID: ${phoneNumberId}`);
       return;
@@ -40,11 +40,8 @@ const handleIncomingMessage = async (from, phoneNumberId, messageText, messageId
       content: msg.content
     }));
 
-    const fullPrompt = aiConfig?.menuContent 
-      ? `${basePrompt}\n\nCatálogo/Menú disponible:\n${aiConfig.menuContent}`
-      : basePrompt;
-
-    const rawResponse = await generateResponse(fullPrompt, messageText, history);
+    // Llamada al motor dinámico de IA (Gemini, OpenAI, o DeepSeek)
+    const rawResponse = await generateDynamicResponse(aiConfig, messageText, history);
 
     // 6. Extraer JSON de pedido si existe
     let cleanResponse = rawResponse;
@@ -71,13 +68,20 @@ const handleIncomingMessage = async (from, phoneNumberId, messageText, messageId
 
     // 8. Si hay un pedido detectado, guardarlo
     if (orderData && orderData.detected) {
+      let commissionAmount = 0;
+      if (branch.business && typeof branch.business.commission === 'number') {
+        commissionAmount = (orderData.total * branch.business.commission) / 100;
+      }
+
       const newOrder = new Order({
         branch: branch._id,
         customerPhone: from,
         items: orderData.items,
         total: orderData.total,
         deliveryAddress: orderData.deliveryAddress,
-        status: 'pending'
+        status: 'pending',
+        commissionStatus: 'pending',
+        commissionAmount: commissionAmount
       });
       await newOrder.save();
       console.log('Nuevo pedido registrado:', newOrder._id);

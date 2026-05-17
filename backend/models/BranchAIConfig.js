@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { encrypt, decrypt } = require('../utils/encryption');
 
 const branchAIConfigSchema = new mongoose.Schema({
   branch: {
@@ -6,6 +7,38 @@ const branchAIConfigSchema = new mongoose.Schema({
     ref: 'Branch',
     required: true,
     unique: true
+  },
+  aiProvider: {
+    type: String,
+    enum: ['gemini', 'openai', 'deepseek'],
+    default: 'gemini'
+  },
+  aiModel: {
+    type: String,
+    default: 'gemini-1.5-pro'
+  },
+  apiKey: {
+    type: String,
+    set: function(value) {
+      // Solo encriptar si es un valor nuevo y no está ya encriptado (formato iv:encrypted)
+      if (value && !value.includes(':')) {
+        return encrypt(value);
+      }
+      return value;
+    },
+    get: function(value) {
+      return decrypt(value);
+    }
+  },
+  temperature: {
+    type: Number,
+    min: 0,
+    max: 2,
+    default: 0.7
+  },
+  additionalParams: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
   },
   businessType: {
     type: String,
@@ -33,7 +66,9 @@ const branchAIConfigSchema = new mongoose.Schema({
     default: true
   }
 }, {
-  timestamps: true
+  timestamps: true,
+  toJSON: { getters: true }, // Asegurar que los getters (decrypt) funcionen al enviar a JSON
+  toObject: { getters: true }
 });
 
 module.exports = mongoose.model('BranchAIConfig', branchAIConfigSchema);
