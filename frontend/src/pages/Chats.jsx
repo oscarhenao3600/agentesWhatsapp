@@ -7,7 +7,8 @@ import {
   Smile, 
   Paperclip,
   MoreVertical,
-  Clock
+  Clock,
+  ArrowLeft
 } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
@@ -132,7 +133,7 @@ const Chats = () => {
   if (loading) return <div style={{ textAlign: 'center', marginTop: '100px', color: 'var(--text-secondary)' }}>Cargando Sucursales...</div>;
 
   return (
-    <div className="chats-container">
+    <div className={`chats-container ${selectedChat ? 'chat-selected' : ''}`}>
       {/* Sidebar de Chats */}
       <div className="chats-sidebar">
         <div className="sidebar-header">
@@ -157,8 +158,8 @@ const Chats = () => {
           </div>
 
           <div className="search-box">
-            <Search size={18} />
-            <input type="text" className="input-field" placeholder="Buscar conversación..." />
+            <Search size={18} style={{ color: 'var(--text-secondary)' }} />
+            <input type="text" className="input-field" placeholder="Buscar conversación..." style={{ border: 'none', background: 'none', padding: '0 5px' }} />
           </div>
         </div>
 
@@ -201,6 +202,14 @@ const Chats = () => {
           <>
             <div className="chat-header">
               <div className="header-info">
+                {/* Botón Volver (Solo visible en Mobile) */}
+                <button 
+                  onClick={() => setSelectedChat(null)} 
+                  className="mobile-back-btn"
+                  title="Volver a los chats"
+                >
+                  <ArrowLeft size={20} />
+                </button>
                 <div className="avatar">
                   <User size={24} />
                 </div>
@@ -210,8 +219,8 @@ const Chats = () => {
                 </div>
               </div>
               <div className="header-actions">
-                <button className="icon-btn"><Search size={20} /></button>
-                <button className="icon-btn"><MoreVertical size={20} /></button>
+                <button className="icon-btn" aria-label="Buscar"><Search size={20} /></button>
+                <button className="icon-btn" aria-label="Más opciones"><MoreVertical size={20} /></button>
               </div>
             </div>
 
@@ -227,19 +236,20 @@ const Chats = () => {
             </div>
 
             <form onSubmit={handleSendManual} className="chat-input-area">
-              <button type="button" className="icon-btn"><Paperclip size={20} /></button>
-              <button type="button" className="icon-btn"><Smile size={20} /></button>
+              <button type="button" className="icon-btn" aria-label="Adjuntar"><Paperclip size={20} /></button>
+              <button type="button" className="icon-btn" aria-label="Emojis"><Smile size={20} /></button>
               <div className="input-wrapper">
                 <input 
                   type="text" 
                   className="input-field"
+                  style={{ border: 'none', background: 'none', padding: 0 }}
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   placeholder="Escribe un mensaje de intervención manual..." 
                   disabled={sending}
                 />
               </div>
-              <button type="submit" className="send-btn" disabled={sending || !message.trim()}>
+              <button type="submit" className="send-btn" aria-label="Enviar" disabled={sending || !message.trim()}>
                 <Send size={20} />
               </button>
             </form>
@@ -253,277 +263,6 @@ const Chats = () => {
         )}
       </div>
 
-      <style jsx>{`
-        .chats-container {
-          display: flex;
-          height: calc(100vh - 120px);
-          background: var(--glass-bg);
-          border-radius: 24px;
-          border: 1px solid var(--border-color);
-          overflow: hidden;
-        }
-
-        .chats-sidebar {
-          width: 350px;
-          border-right: 1px solid var(--border-color);
-          display: flex;
-          flex-direction: column;
-        }
-
-        .sidebar-header {
-          padding: 24px;
-          border-bottom: 1px solid var(--border-color);
-        }
-
-        .sidebar-header h2 {
-          font-size: 22px;
-          margin-bottom: 20px;
-        }
-
-        .search-box {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          background: rgba(255, 255, 255, 0.05);
-          padding: 10px 15px;
-          border-radius: 12px;
-          border: 1px solid var(--border-color);
-        }
-
-        .search-box input {
-          background: none;
-          border: none;
-          color: white;
-          width: 100%;
-          outline: none;
-        }
-
-        .chats-list {
-          flex: 1;
-          overflow-y: auto;
-        }
-
-        .chat-item {
-          display: flex;
-          align-items: center;
-          gap: 15px;
-          padding: 15px 24px;
-          cursor: pointer;
-          transition: all 0.2s;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-        }
-
-        .chat-item:hover {
-          background: rgba(255, 255, 255, 0.03);
-        }
-
-        .chat-item.active {
-          background: var(--accent-soft);
-          border-left: 4px solid var(--accent-primary);
-        }
-
-        .avatar {
-          width: 45px;
-          height: 45px;
-          background: var(--bg-secondary);
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: var(--accent-primary);
-        }
-
-        .chat-info {
-          flex: 1;
-          overflow: hidden;
-        }
-
-        .chat-name-row {
-          display: flex;
-          justify-content: space-between;
-          margin-bottom: 4px;
-        }
-
-        .chat-name {
-          font-weight: 600;
-          font-size: 15px;
-        }
-
-        .chat-time {
-          font-size: 12px;
-          color: var(--text-secondary);
-        }
-
-        .chat-last-msg {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-
-        .chat-last-msg p {
-          font-size: 13px;
-          color: var(--text-secondary);
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-
-        .unread-badge {
-          background: var(--accent-primary);
-          color: white;
-          font-size: 10px;
-          font-weight: 700;
-          padding: 2px 6px;
-          border-radius: 10px;
-        }
-
-        .chat-area {
-          flex: 1;
-          display: flex;
-          flex-direction: column;
-          background: rgba(0, 0, 0, 0.2);
-        }
-
-        .chat-header {
-          padding: 15px 30px;
-          background: var(--glass-bg);
-          border-bottom: 1px solid var(--border-color);
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-
-        .header-info {
-          display: flex;
-          align-items: center;
-          gap: 15px;
-        }
-
-        .header-info h3 {
-          font-size: 16px;
-        }
-
-        .status {
-          font-size: 12px;
-          color: var(--success);
-        }
-
-        .chat-messages {
-          flex: 1;
-          padding: 30px;
-          overflow-y: auto;
-          display: flex;
-          flex-direction: column;
-          gap: 15px;
-        }
-
-        .message-wrapper {
-          max-width: 70%;
-          display: flex;
-        }
-
-        .message-wrapper.user {
-          align-self: flex-start;
-        }
-
-        .message-wrapper.assistant {
-          align-self: flex-end;
-        }
-
-        .message-bubble {
-          padding: 12px 16px;
-          border-radius: 18px;
-          position: relative;
-        }
-
-        .user .message-bubble {
-          background: var(--bg-secondary);
-          border-bottom-left-radius: 4px;
-        }
-
-        .assistant .message-bubble {
-          background: var(--accent-primary);
-          color: white;
-          border-bottom-right-radius: 4px;
-        }
-
-        .msg-time {
-          font-size: 10px;
-          opacity: 0.6;
-          display: block;
-          margin-top: 5px;
-          text-align: right;
-        }
-
-        .chat-input-area {
-          padding: 20px 30px;
-          background: var(--glass-bg);
-          display: flex;
-          align-items: center;
-          gap: 15px;
-        }
-
-        .input-wrapper {
-          flex: 1;
-          background: rgba(255, 255, 255, 0.05);
-          border-radius: 15px;
-          padding: 10px 20px;
-          border: 1px solid var(--border-color);
-        }
-
-        .input-wrapper input {
-          width: 100%;
-          background: none;
-          border: none;
-          color: white;
-          outline: none;
-        }
-
-        .send-btn {
-          width: 45px;
-          height: 45px;
-          background: var(--gradient-primary);
-          border-radius: 12px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: white;
-          box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
-        }
-
-        .empty-chat {
-          flex: 1;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          text-align: center;
-          padding: 40px;
-        }
-
-        .empty-chat h3 {
-          margin-top: 20px;
-          font-size: 24px;
-        }
-
-        .empty-chat p {
-          color: var(--text-secondary);
-          margin-top: 10px;
-          max-width: 400px;
-        }
-
-        .icon-btn {
-          background: none;
-          border: none;
-          color: var(--text-secondary);
-          cursor: pointer;
-          transition: color 0.2s;
-        }
-
-        .icon-btn:hover {
-          color: var(--text-primary);
-        }
-      `}</style>
     </div>
   );
 };

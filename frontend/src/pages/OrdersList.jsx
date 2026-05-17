@@ -79,14 +79,16 @@ const OrdersList = () => {
         <ArrowLeft size={18} /> Volver
       </button>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
+      <div className="page-header">
         <div>
-          <h2 style={{ fontSize: '32px' }}>Pedidos y Reservaciones</h2>
+          <h2 style={{ fontSize: '28px', mdFontSize: '32px' }}>Pedidos y Reservaciones</h2>
           <p style={{ color: 'var(--text-secondary)' }}>Gestiona los pedidos y reservas capturados automáticamente por la IA</p>
         </div>
-        <div className="glass-card" style={{ padding: '10px 20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <ShoppingBag className="gradient-text" />
-          <strong>{orders.length} Totales</strong>
+        <div className="page-header-actions">
+          <div className="glass-card" style={{ padding: '10px 20px', display: 'flex', alignItems: 'center', gap: '10px', boxShadow: 'none' }}>
+            <ShoppingBag className="gradient-text" />
+            <strong>{orders.length} Totales</strong>
+          </div>
         </div>
       </div>
 
@@ -137,26 +139,26 @@ const OrdersList = () => {
                 </div>
 
                 {/* Detalle Productos o Reservación */}
-                <div style={{ flex: '2', minWidth: '300px', borderLeft: '1px solid var(--border-color)', paddingLeft: '20px' }}>
+                <div className="order-details-col">
                   {order.orderType === 'reservation' ? (
                     <div>
                       <h4 style={{ marginBottom: '15px', fontSize: '16px', color: 'var(--accent-primary)', fontWeight: '700' }}>Detalles de Reservación</h4>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', fontSize: '14px', marginBottom: '15px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '15px', fontSize: '14px', marginBottom: '15px' }}>
                         <div>
                           <span style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '12px' }}>Check-In</span>
-                          <strong style={{ fontSize: '15px' }}>{order.checkIn ? new Date(order.checkIn).toLocaleString() : 'No especificado'}</strong>
+                          <strong style={{ fontSize: '14px' }}>{order.checkIn ? new Date(order.checkIn).toLocaleString() : 'No especificado'}</strong>
                         </div>
                         <div>
                           <span style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '12px' }}>Check-Out</span>
-                          <strong style={{ fontSize: '15px' }}>{order.checkOut ? new Date(order.checkOut).toLocaleString() : 'No especificado'}</strong>
+                          <strong style={{ fontSize: '14px' }}>{order.checkOut ? new Date(order.checkOut).toLocaleString() : 'No especificado'}</strong>
                         </div>
                         <div>
                           <span style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '12px' }}>Huéspedes</span>
-                          <strong style={{ fontSize: '15px' }}>{order.guestsCount || 1} Persona(s)</strong>
+                          <strong style={{ fontSize: '14px' }}>{order.guestsCount || 1} Persona(s)</strong>
                         </div>
                         <div>
                           <span style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '12px' }}>Tipo de Habitación / Glamping</span>
-                          <strong style={{ fontSize: '15px', color: 'var(--accent-secondary)' }}>{order.roomType || 'Habitación Standard'}</strong>
+                          <strong style={{ fontSize: '14px', color: 'var(--accent-secondary)' }}>{order.roomType || 'Habitación Standard'}</strong>
                         </div>
                       </div>
                       
@@ -168,7 +170,7 @@ const OrdersList = () => {
                       )}
                       
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px dashed var(--border-color)', paddingTop: '12px' }}>
-                        <span style={{ fontWeight: '700', fontSize: '18px' }}>VALOR TOTAL</span>
+                        <span style={{ fontWeight: '700', fontSize: '16px' }}>VALOR TOTAL</span>
                         <span style={{ fontWeight: '700', fontSize: '18px' }} className="gradient-text">
                           ${order.total?.toLocaleString()}
                         </span>
@@ -177,38 +179,40 @@ const OrdersList = () => {
                   ) : (
                     <div>
                       <h4 style={{ marginBottom: '10px', fontSize: '16px' }}>Detalle del Pedido</h4>
-                      <table style={{ width: '100%', fontSize: '14px' }}>
-                        <thead>
-                          <tr style={{ color: 'var(--text-secondary)', textAlign: 'left' }}>
-                            <th>Producto</th>
-                            <th>Cant.</th>
-                            <th style={{ textAlign: 'right' }}>Precio</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {order.items.map((item, i) => (
-                            <tr key={i}>
-                              <td style={{ padding: '4px 0' }}>{item.name}</td>
-                              <td>x{item.quantity}</td>
-                              <td style={{ textAlign: 'right' }}>${item.price?.toLocaleString()}</td>
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', fontSize: '14px', minWidth: '250px' }}>
+                          <thead>
+                            <tr style={{ color: 'var(--text-secondary)', textAlign: 'left' }}>
+                              <th>Producto</th>
+                              <th>Cant.</th>
+                              <th style={{ textAlign: 'right' }}>Precio</th>
                             </tr>
-                          ))}
-                        </tbody>
-                        <tfoot>
-                          <tr>
-                            <td colSpan="2" style={{ paddingTop: '15px', fontWeight: '700', fontSize: '18px' }}>TOTAL</td>
-                            <td style={{ paddingTop: '15px', textAlign: 'right', fontWeight: '700', fontSize: '18px' }} className="gradient-text">
-                              ${order.total?.toLocaleString()}
-                            </td>
-                          </tr>
-                        </tfoot>
-                      </table>
+                          </thead>
+                          <tbody>
+                            {order.items.map((item, i) => (
+                              <tr key={i}>
+                                <td style={{ padding: '4px 0' }}>{item.name}</td>
+                                <td>x{item.quantity}</td>
+                                <td style={{ textAlign: 'right' }}>${item.price?.toLocaleString()}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          <tfoot>
+                            <tr>
+                              <td colSpan="2" style={{ paddingTop: '15px', fontWeight: '700', fontSize: '16px' }}>TOTAL</td>
+                              <td style={{ paddingTop: '15px', textAlign: 'right', fontWeight: '700', fontSize: '18px' }} className="gradient-text">
+                                ${order.total?.toLocaleString()}
+                              </td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
                     </div>
                   )}
                 </div>
 
                 {/* Acciones */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', justifyContent: 'center' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', justifyContent: 'center', minWidth: '150px' }}>
                   <select 
                     className="input-field" 
                     style={{ padding: '8px', fontSize: '13px' }}
@@ -228,6 +232,7 @@ const OrdersList = () => {
           ))
         )}
       </div>
+
     </div>
   );
 };

@@ -63,55 +63,55 @@ const Dashboard = () => {
   return (
     <>
       <header style={{ marginBottom: '40px' }}>
-        <h1 style={{ fontSize: '32px', marginBottom: '8px' }}>Bienvenido, <span className="gradient-text">{user?.username}</span></h1>
-        <p style={{ color: 'var(--text-secondary)' }}>Aquí tienes un resumen de tus operaciones actuales.</p>
+        <h1 style={{ fontSize: '28px', mdFontSize: '32px', marginBottom: '8px' }}>Bienvenido, <span className="gradient-text">{user?.username}</span></h1>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '15px' }}>Aquí tienes un resumen de tus operaciones actuales.</p>
       </header>
 
       {/* Stats Overview */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px', marginBottom: '40px' }}>
-        <div className="glass-card" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '40px' }}>
+        <div className="glass-card" style={{ display: 'flex', alignItems: 'center', gap: '20px', padding: '20px' }}>
           <div style={{ background: 'rgba(99, 102, 241, 0.1)', padding: '15px', borderRadius: '15px' }}>
             <Building2 className="gradient-text" size={24} />
           </div>
           <div>
-            <span style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>Negocios</span>
-            <h3 style={{ fontSize: '24px' }}>{businesses.length}</h3>
+            <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Negocios</span>
+            <h3 style={{ fontSize: '22px', fontWeight: '700' }}>{businesses.length}</h3>
           </div>
         </div>
-        <div className="glass-card" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+        <div className="glass-card" style={{ display: 'flex', alignItems: 'center', gap: '20px', padding: '20px' }}>
           <div style={{ background: 'rgba(16, 185, 129, 0.1)', padding: '15px', borderRadius: '15px' }}>
             <ShoppingBag style={{ color: '#10b981' }} size={24} />
           </div>
           <div>
-            <span style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>Pedidos Hoy</span>
-            <h3 style={{ fontSize: '24px' }}>0</h3>
+            <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Pedidos Hoy</span>
+            <h3 style={{ fontSize: '22px', fontWeight: '700' }}>0</h3>
           </div>
         </div>
-        <div className="glass-card" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+        <div className="glass-card" style={{ display: 'flex', alignItems: 'center', gap: '20px', padding: '20px' }}>
           <div style={{ background: 'rgba(245, 158, 11, 0.1)', padding: '15px', borderRadius: '15px' }}>
             <MessageSquare style={{ color: '#f59e0b' }} size={24} />
           </div>
           <div>
-            <span style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>Mensajes IA</span>
-            <h3 style={{ fontSize: '24px' }}>0</h3>
+            <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Mensajes IA</span>
+            <h3 style={{ fontSize: '22px', fontWeight: '700' }}>0</h3>
           </div>
         </div>
-        <div className="glass-card" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+        <div className="glass-card" style={{ display: 'flex', alignItems: 'center', gap: '20px', padding: '20px' }}>
           <div style={{ background: 'rgba(139, 92, 246, 0.1)', padding: '15px', borderRadius: '15px' }}>
             <TrendingUp style={{ color: '#8b5cf6' }} size={24} />
           </div>
           <div>
-            <span style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>Conversión</span>
-            <h3 style={{ fontSize: '24px' }}>0%</h3>
+            <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Conversión</span>
+            <h3 style={{ fontSize: '22px', fontWeight: '700' }}>0%</h3>
           </div>
         </div>
       </div>
 
       <section>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
+        <div className="page-header">
           <h2 style={{ fontSize: '24px' }}>Tus Negocios</h2>
           {user?.role === 'admin' && (
-            <div style={{ display: 'flex', gap: '12px' }}>
+            <div className="page-header-actions">
               <button onClick={() => setIsUserModalOpen(true)} className="btn-secondary">
                 <UserPlus size={18} /> Nuevo Cliente
               </button>
@@ -122,27 +122,27 @@ const Dashboard = () => {
           )}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '25px' }}>
+        <div className="responsive-grid">
           {businesses.map((biz) => (
-            <div key={biz._id} className="glass-card" style={{ padding: '30px' }}>
+            <div key={biz._id} className="glass-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', height: '100%' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '20px' }}>
-                <div style={{ background: 'var(--accent-soft)', padding: '12px', borderRadius: '16px' }}>
+                <div style={{ background: 'var(--accent-soft)', padding: '12px', borderRadius: '16px', display: 'flex' }}>
                   <Bot size={28} className="gradient-text" />
                 </div>
                 <div>
-                  <h3 style={{ fontSize: '20px' }}>{biz.name}</h3>
-                  <span className="badge badge-success" style={{ fontSize: '10px' }}>Activo</span>
+                  <h3 style={{ fontSize: '18px', fontWeight: '700' }}>{biz.name}</h3>
+                  <span className="badge badge-success" style={{ fontSize: '9px', padding: '2px 8px' }}>Activo</span>
                 </div>
               </div>
               
-              <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '25px', minHeight: '42px' }}>
+              <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '25px', minHeight: '42px', flexGrow: 1 }}>
                 {biz.description || 'Sin descripción detallada del negocio.'}
               </p>
 
-              <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto' }}>
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Propietario</span>
-                  <span style={{ fontSize: '14px', fontWeight: '600' }}>{biz.owner?.username || 'Sistema'}</span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Propietario</span>
+                  <span style={{ fontSize: '13px', fontWeight: '600' }}>{biz.owner?.username || 'Sistema'}</span>
                 </div>
                 <button 
                   onClick={() => navigate(`/business/${biz._id}/branches`)} 

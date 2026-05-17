@@ -124,16 +124,18 @@ const CommissionsReport = () => {
 
   return (
     <div className="container" style={{ paddingBottom: '40px' }}>
-      <header style={{ marginBottom: '30px' }}>
-        <h1 style={{ fontSize: '32px', marginBottom: '8px' }}>
-          Reportes y <span className="gradient-text">Comisiones</span>
-        </h1>
-        <p style={{ color: 'var(--text-secondary)' }}>
-          {user?.role === 'admin' 
-            ? 'Monitorea las ventas y gestiona los cobros de comisiones de todos los negocios.' 
-            : 'Revisa el rendimiento de tus sucursales y las comisiones pendientes.'}
-        </p>
-      </header>
+      <div className="page-header">
+        <div>
+          <h1 style={{ fontSize: '28px', mdFontSize: '32px', marginBottom: '8px' }}>
+            Reportes y <span className="gradient-text">Comisiones</span>
+          </h1>
+          <p style={{ color: 'var(--text-secondary)' }}>
+            {user?.role === 'admin' 
+              ? 'Monitorea las ventas y gestiona los cobros de comisiones de todos los negocios.' 
+              : 'Revisa el rendimiento de tus sucursales y las comisiones pendientes.'}
+          </p>
+        </div>
+      </div>
 
       {/* Filtros */}
       <div className="glass-card" style={{ marginBottom: '30px', display: 'flex', gap: '20px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
@@ -293,53 +295,46 @@ const CommissionsReport = () => {
                 
                 <div style={{ display: 'grid', gap: '15px' }}>
                   {business.branches.map((branch) => (
-                    <div key={branch.branchId} style={{ 
-                      display: 'grid', 
-                      gridTemplateColumns: '2fr 1fr 1fr 1fr auto', 
-                      gap: '15px',
-                      alignItems: 'center',
-                      padding: '15px',
-                      background: 'rgba(0,0,0,0.1)',
-                      borderRadius: '8px',
-                      border: '1px solid rgba(255,255,255,0.05)'
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontWeight: '500' }}>
+                    <div key={branch.branchId} className="branch-commission-row">
+                      <div className="branch-name-col">
                         <MapPin size={16} style={{ color: 'var(--accent-secondary)' }} />
-                        {branch.branchName}
+                        <span>{branch.branchName}</span>
                       </div>
                       
                       <div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Pedidos</div>
+                        <span className="mobile-label">Pedidos</span>
                         <div style={{ fontWeight: '600' }}>{branch.totalOrders}</div>
                       </div>
 
                       {/* El cliente solo ve detalles básicos, el admin ve ventas totales */}
                       {user?.role === 'admin' ? (
                         <div>
-                          <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Ventas Generadas</div>
+                          <span className="mobile-label">Ventas Generadas</span>
                           <div style={{ fontWeight: '600' }}>{formatCurrency(branch.totalSales)}</div>
                         </div>
                       ) : <div></div>}
 
                       <div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                        <span className="mobile-label">
                           Comisión {filters.status === 'paid' ? 'Pagada' : 'Pendiente'}
-                        </div>
+                        </span>
                         <div style={{ fontWeight: 'bold', color: filters.status === 'paid' ? '#10b981' : '#f59e0b' }}>
                           {formatCurrency(branch.totalCommission)}
                         </div>
                       </div>
 
-                      {user?.role === 'admin' && filters.status === 'pending' && branch.totalCommission > 0 && (
-                        <button 
-                          className="btn-secondary" 
-                          style={{ padding: '6px 12px', fontSize: '13px' }}
-                          onClick={() => handleMarkAsPaid(business.businessId, branch.branchId)}
-                          disabled={markingPaid}
-                        >
-                          Saldar Sede
-                        </button>
-                      )}
+                      <div className="action-col">
+                        {user?.role === 'admin' && filters.status === 'pending' && branch.totalCommission > 0 && (
+                          <button 
+                            className="btn-secondary" 
+                            style={{ padding: '6px 12px', fontSize: '13px' }}
+                            onClick={() => handleMarkAsPaid(business.businessId, branch.branchId)}
+                            disabled={markingPaid}
+                          >
+                            Saldar Sede
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -348,6 +343,7 @@ const CommissionsReport = () => {
           ))}
         </div>
       )}
+
     </div>
   );
 };

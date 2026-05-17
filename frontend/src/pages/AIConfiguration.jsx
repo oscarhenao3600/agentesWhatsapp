@@ -106,14 +106,16 @@ const AIConfiguration = () => {
         <ArrowLeft size={18} /> Volver
       </button>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
+      <div className="page-header">
         <div>
-          <h2 style={{ fontSize: '32px' }}>Configuración de IA: {branch?.name}</h2>
+          <h2 style={{ fontSize: '28px', mdFontSize: '32px' }}>Configuración de IA: {branch?.name}</h2>
           <p style={{ color: 'var(--text-secondary)' }}>Define el comportamiento, proveedor y conocimiento de tu agente virtual</p>
         </div>
-        <button onClick={handleSave} className="btn-primary" disabled={saving} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Save size={18} /> {saving ? 'Guardando...' : 'Guardar Cambios'}
-        </button>
+        <div className="page-header-actions">
+          <button onClick={handleSave} className="btn-primary" disabled={saving} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Save size={18} /> {saving ? 'Guardando...' : 'Guardar Cambios'}
+          </button>
+        </div>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
@@ -125,7 +127,7 @@ const AIConfiguration = () => {
             <h3 style={{ fontSize: '20px' }}>Proveedor y Conexión</h3>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '20px' }}>
             <div>
               <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>Proveedor de Inteligencia Artificial</label>
               <select 
@@ -158,7 +160,7 @@ const AIConfiguration = () => {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
             <div>
               <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>
                 API Key (Se guardará encriptada)
@@ -217,7 +219,7 @@ const AIConfiguration = () => {
           )}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))', gap: '30px' }}>
           {/* Lado Izquierdo: Personalidad y Prompt */}
           <div className="glass-card">
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>

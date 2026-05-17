@@ -72,17 +72,19 @@ const BranchManagement = () => {
         <ArrowLeft size={18} /> Volver al Panel
       </button>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
+      <div className="page-header">
         <div>
-          <h2 style={{ fontSize: '32px' }}>Sucursales de {business?.name}</h2>
+          <h2 style={{ fontSize: '28px', mdFontSize: '32px' }}>Sucursales de {business?.name}</h2>
           <p style={{ color: 'var(--text-secondary)' }}>Gestiona los números de WhatsApp y la IA por cada sede</p>
         </div>
-        <button onClick={() => setIsModalOpen(true)} className="btn-primary">
-          <Plus size={18} /> Nueva Sucursal
-        </button>
+        <div className="page-header-actions">
+          <button onClick={() => setIsModalOpen(true)} className="btn-primary">
+            <Plus size={18} /> Nueva Sucursal
+          </button>
+        </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '25px' }}>
+      <div className="responsive-grid">
         {branches.length === 0 ? (
           <div className="glass-card" style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '50px' }}>
             <p>No hay sucursales configuradas para este negocio.</p>

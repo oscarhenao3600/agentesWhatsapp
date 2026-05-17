@@ -1,43 +1,51 @@
-import React from 'react';
+import React, { useState } from 'react';
 import Sidebar from './Sidebar';
+import { Menu, Sun, Moon, Bot } from 'lucide-react';
 
-const Layout = ({ children }) => {
+const Layout = ({ children, theme, toggleTheme }) => {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
   return (
     <div className="app-layout">
-      <Sidebar />
+      {/* Mobile Sticky Top Header */}
+      <header className="mobile-navbar">
+        <button 
+          className="mobile-menu-btn" 
+          onClick={() => setSidebarOpen(true)}
+          aria-label="Abrir menú"
+        >
+          <Menu size={24} />
+        </button>
+        
+        <div className="mobile-logo-container">
+          <Bot className="logo-icon-mobile" />
+          <span className="logo-text-mobile">Agente<span className="gradient-text">WA</span></span>
+        </div>
+        
+        <button 
+          className="mobile-theme-btn" 
+          onClick={toggleTheme}
+          aria-label="Cambiar tema"
+        >
+          {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
+        </button>
+      </header>
+
+      {/* Sidebar with Drawer Controls */}
+      <Sidebar 
+        isOpen={sidebarOpen} 
+        onClose={() => setSidebarOpen(false)} 
+        theme={theme}
+        toggleTheme={toggleTheme}
+      />
+
+      {/* Main Content Area */}
       <main className="main-content">
         <div className="content-container">
           {children}
         </div>
       </main>
 
-      <style jsx>{`
-        .app-layout {
-          display: flex;
-          min-height: 100vh;
-          background: var(--bg-primary);
-        }
-
-        .main-content {
-          flex: 1;
-          margin-left: 260px; /* Ancho del sidebar */
-          padding: 40px;
-          min-height: 100vh;
-          position: relative;
-        }
-
-        .content-container {
-          max-width: 1400px;
-          margin: 0 auto;
-        }
-
-        @media (max-width: 1024px) {
-          .main-content {
-            margin-left: 0;
-            padding: 20px;
-          }
-        }
-      `}</style>
     </div>
   );
 };

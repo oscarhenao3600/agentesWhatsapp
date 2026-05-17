@@ -39,12 +39,14 @@ const GlobalBranchesList = () => {
 
   return (
     <>
-      <header style={{ marginBottom: '40px' }}>
-        <h1 style={{ fontSize: '32px', marginBottom: '8px' }}>Todas las <span className="gradient-text">Sucursales</span></h1>
-        <p style={{ color: 'var(--text-secondary)' }}>Gestiona la conectividad y la IA de cada sede de forma individual.</p>
-      </header>
+      <div className="page-header">
+        <div>
+          <h1 style={{ fontSize: '28px', mdFontSize: '32px', marginBottom: '8px' }}>Todas las <span className="gradient-text">Sucursales</span></h1>
+          <p style={{ color: 'var(--text-secondary)' }}>Gestiona la conectividad y la IA de cada sede de forma individual.</p>
+        </div>
+      </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '25px' }}>
+      <div className="responsive-grid">
         {branches.map(branch => (
           <div key={branch._id} className="glass-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>

@@ -43,14 +43,16 @@ const UsersList = () => {
 
   return (
     <>
-      <header style={{ marginBottom: '40px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+      <header className="page-header">
         <div>
-          <h1 style={{ fontSize: '32px', marginBottom: '8px' }}>Gestión de <span className="gradient-text">Usuarios</span></h1>
+          <h1 style={{ fontSize: '28px', mdFontSize: '32px', marginBottom: '8px' }}>Gestión de <span className="gradient-text">Usuarios</span></h1>
           <p style={{ color: 'var(--text-secondary)' }}>Administra los accesos de clientes y personal al sistema.</p>
         </div>
-        <button onClick={() => setIsModalOpen(true)} className="btn-primary">
-          <UserPlus size={18} /> Nuevo Usuario
-        </button>
+        <div className="page-header-actions">
+          <button onClick={() => setIsModalOpen(true)} className="btn-primary">
+            <UserPlus size={18} /> Nuevo Usuario
+          </button>
+        </div>
       </header>
 
       <div className="glass-card" style={{ padding: '0px', overflow: 'hidden' }}>
@@ -68,9 +70,10 @@ const UsersList = () => {
           </div>
         </div>
 
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-          <thead>
-            <tr style={{ background: 'rgba(0,0,0,0.05)', color: 'var(--text-secondary)', fontSize: '13px' }}>
+        <div className="responsive-table-container">
+          <table className="responsive-table">
+            <thead>
+              <tr style={{ background: 'var(--table-header-bg)', color: 'var(--text-secondary)', fontSize: '13px' }}>
               <th style={{ padding: '15px 24px' }}>USUARIO</th>
               <th style={{ padding: '15px 24px' }}>ROL</th>
               <th style={{ padding: '15px 24px' }}>ID</th>
@@ -120,6 +123,7 @@ const UsersList = () => {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       <UserModal 
