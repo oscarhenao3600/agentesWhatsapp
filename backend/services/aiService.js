@@ -11,7 +11,7 @@ const OpenAI = require("openai");
 const generateDynamicResponse = async (aiConfig, userMessage, history = []) => {
   // Configuración de Fallback por defecto
   let provider = aiConfig?.aiProvider || 'gemini';
-  let modelName = aiConfig?.aiModel || 'gemini-1.5-pro';
+  let modelName = aiConfig?.aiModel || 'gemini-2.5-flash';
   let apiKey = aiConfig?.apiKey;
   let temperature = aiConfig?.temperature !== undefined ? aiConfig.temperature : 0.7;
 
@@ -20,7 +20,7 @@ const generateDynamicResponse = async (aiConfig, userMessage, history = []) => {
     if (process.env.GEMINI_API_KEY) {
       console.log('No branch API Key found, using global Gemini fallback.');
       provider = 'gemini';
-      modelName = 'gemini-1.5-pro';
+      modelName = 'gemini-2.5-flash';
       apiKey = process.env.GEMINI_API_KEY;
     } else {
       throw new Error("No hay API Key configurada en la sucursal ni en el entorno (.env).");

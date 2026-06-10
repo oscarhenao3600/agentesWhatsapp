@@ -2,7 +2,7 @@ const crypto = require('crypto');
 
 // Use a secure key from env, or a fallback for development.
 // It must be exactly 32 bytes (256 bits) for aes-256-cbc.
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'default_secret_key_32_bytes_long_'; 
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'default_secret_key_32_bytes_long'; 
 const IV_LENGTH = 16; // For AES, this is always 16
 
 /**

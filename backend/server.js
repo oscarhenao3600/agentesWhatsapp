@@ -10,9 +10,11 @@ connectDB();
 
 const app = express();
 
+app.get('/ping', (req, res) => res.send('pong'));
+
 // Middlewares de Seguridad
 app.use(helmet()); // Cabeceras de seguridad
-app.use(mongoSanitize()); // Prevenir inyección NoSQL
+app.use(mongoSanitize({ replaceWith: '_' })); // Prevenir inyección NoSQL
 app.use(cors()); // Habilitar CORS
 app.use(express.json()); // Parsear JSON
 
@@ -27,6 +29,6 @@ app.use('/api/chat', require('./routes/chat'));
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Servidor ejecutándose en modo ${process.env.NODE_ENV} en el puerto ${PORT}`);
 });
