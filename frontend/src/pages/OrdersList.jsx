@@ -124,9 +124,20 @@ const OrdersList = () => {
                   </div>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '600' }}>
-                      <Phone size={16} /> {order.customerPhone}
-                    </div>
+                    {order.customerName ? (
+                      <>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '600' }}>
+                          <User size={16} /> {order.customerName}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: 'var(--text-secondary)' }}>
+                          <Phone size={16} /> {order.customerPhone}
+                        </div>
+                      </>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '600' }}>
+                        <Phone size={16} /> {order.customerPhone}
+                      </div>
+                    )}
                     {order.deliveryAddress && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: 'var(--text-secondary)' }}>
                         <MapPin size={16} /> {order.deliveryAddress}

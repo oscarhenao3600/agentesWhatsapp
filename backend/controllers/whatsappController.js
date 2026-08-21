@@ -9,9 +9,11 @@ const Order = require('../models/Order');
  * Procesa un mensaje entrante de WhatsApp (Meta API).
 // ... (previous params)
  */
-const handleIncomingMessage = async (from, phoneNumberId, messageText, messageId) => {
+const handleIncomingMessage = async (from, phoneNumberId, messageText, messageId, contactName = '') => {
   try {
-    // ... (previous branch and config finding)
+    // Normalizar el identificador por si acaso
+    const cleanFrom = from.startsWith('whatsapp:') ? from.replace('whatsapp:', '') : from;
+
     const branch = await Branch.findOne({ whatsappNumberId: phoneNumberId }).populate('business');
     if (!branch) {
       console.error(`Sucursal no encontrada para el ID: ${phoneNumberId}`);
@@ -21,18 +23,21 @@ const handleIncomingMessage = async (from, phoneNumberId, messageText, messageId
     const aiConfig = await BranchAIConfig.findOne({ branch: branch._id });
     const basePrompt = aiConfig ? aiConfig.basePrompt : 'Eres un asistente virtual amable.';
 
-    // ... (previous conversation logic)
     let conversation = await Conversation.findOne({ 
       branch: branch._id, 
-      customerNumber: from 
+      customerNumber: cleanFrom 
     });
 
     if (!conversation) {
       conversation = new Conversation({
         branch: branch._id,
-        customerNumber: from,
+        customerNumber: cleanFrom,
+        customerName: contactName || undefined,
         messages: []
       });
+    } else if (contactName && !conversation.customerName) {
+      // Guardar el nombre de perfil si no estaba registrado
+      conversation.customerName = contactName;
     }
 
     const history = conversation.messages.slice(-10).map(msg => ({
@@ -87,7 +92,8 @@ const handleIncomingMessage = async (from, phoneNumberId, messageText, messageId
 
       const newOrder = new Order({
         branch: branch._id,
-        customerPhone: from,
+        customerPhone: cleanFrom,
+        customerName: contactName || undefined,
         items: orderData.items,
         total: orderData.total,
         deliveryAddress: orderData.deliveryAddress,
@@ -106,8 +112,8 @@ const handleIncomingMessage = async (from, phoneNumberId, messageText, messageId
 
       const newReservation = new Order({
         branch: branch._id,
-        customerPhone: from,
-        customerName: reservationData.customerName || '',
+        customerPhone: cleanFrom,
+        customerName: reservationData.customerName || contactName || '',
         items: [{
           name: `Reserva: ${reservationData.roomType || 'Habitación/Glamping'}`,
           quantity: 1,
@@ -130,7 +136,7 @@ const handleIncomingMessage = async (from, phoneNumberId, messageText, messageId
     }
 
     // 9. Enviar respuesta real a WhatsApp vía Meta API
-    await sendTextMessage(branch.whatsappNumberId, branch.accessToken, from, cleanResponse);
+    await sendTextMessage(branch.whatsappNumberId, branch.accessToken, cleanFrom, cleanResponse);
     
     // 10. Marcar como leído
     await markAsRead(branch.whatsappNumberId, branch.accessToken, messageId);

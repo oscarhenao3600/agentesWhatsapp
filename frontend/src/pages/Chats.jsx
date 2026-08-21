@@ -182,7 +182,7 @@ const Chats = () => {
                   </div>
                   <div className="chat-info">
                     <div className="chat-name-row">
-                      <span className="chat-name">{chat.customerNumber}</span>
+                      <span className="chat-name">{chat.customerName || chat.customerNumber}</span>
                       <span className="chat-time">{formatTime(chat.lastInteraction)}</span>
                     </div>
                     <div className="chat-last-msg">
@@ -214,7 +214,7 @@ const Chats = () => {
                   <User size={24} />
                 </div>
                 <div>
-                  <h3>{selectedChat.customerNumber}</h3>
+                  <h3>{selectedChat.customerName || selectedChat.customerNumber}</h3>
                   <span className="status">IA Activa (Monitoreando)</span>
                 </div>
               </div>

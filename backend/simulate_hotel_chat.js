@@ -154,7 +154,9 @@ async function startSimulation() {
     output: process.stdout
   });
 
-  const clientPhoneNumber = '573004445566'; // Número simulado del cliente
+  // Simular un identificador BSUID de WhatsApp (con prefijo 'whatsapp:' para verificar la normalización)
+  const clientBsuid = 'whatsapp:BR.john_doe_bsuid_999';
+  const clientProfileName = 'John Doe (Meta Username)';
 
   const askMessage = () => {
     rl.question('\x1b[33m🗣️  Tú (Cliente): \x1b[0m', async (userInput) => {
@@ -183,12 +185,13 @@ async function startSimulation() {
 
         // Procesar mensaje mediante el controlador real
         // Esto ejecuta el flujo completo: IA -> Parseo JSON de Reservas -> Guardado en MongoDB
-        await handleIncomingMessage(clientPhoneNumber, branch.whatsappNumberId, userInput, `msg-${Date.now()}`);
+        await handleIncomingMessage(clientBsuid, branch.whatsappNumberId, userInput, `msg-${Date.now()}`, clientProfileName);
 
         // Revisar si se registró una nueva reservación en la base de datos
         const afterCount = await Order.countDocuments();
         if (afterCount > beforeCount) {
-          const latestReservation = await Order.findOne({ customerPhone: clientPhoneNumber }).sort({ createdAt: -1 });
+          const normalizedBsuid = clientBsuid.replace('whatsapp:', '');
+          const latestReservation = await Order.findOne({ customerPhone: normalizedBsuid }).sort({ createdAt: -1 });
           if (latestReservation) {
             console.log('\x1b[32m%s\x1b[0m', '==================================================================');
             console.log('🎉 ¡RESERVACIÓN DETECTADA Y GUARDADA AUTOMÁTICAMENTE EN LA BD! 🎉');

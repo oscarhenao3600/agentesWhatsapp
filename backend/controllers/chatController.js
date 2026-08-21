@@ -48,6 +48,8 @@ exports.sendManualMessage = async (req, res) => {
       return res.status(400).json({ message: 'Número de cliente y mensaje son requeridos' });
     }
 
+    const cleanCustomerNumber = customerNumber.startsWith('whatsapp:') ? customerNumber.replace('whatsapp:', '') : customerNumber;
+
     const hasAccess = await validateBranchAccess(req.user._id, req.user.role, branchId);
     if (!hasAccess) {
       return res.status(403).json({ message: 'No tienes acceso a esta sucursal' });
@@ -63,14 +65,14 @@ exports.sendManualMessage = async (req, res) => {
     }
 
     // 1. Enviar el mensaje a través de WhatsApp (Meta API)
-    await sendTextMessage(branch.whatsappNumberId, branch.accessToken, customerNumber, message);
+    await sendTextMessage(branch.whatsappNumberId, branch.accessToken, cleanCustomerNumber, message);
 
     // 2. Registrar en la base de datos
-    let conversation = await Conversation.findOne({ branch: branchId, customerNumber });
+    let conversation = await Conversation.findOne({ branch: branchId, customerNumber: cleanCustomerNumber });
     if (!conversation) {
       conversation = new Conversation({
         branch: branchId,
-        customerNumber,
+        customerNumber: cleanCustomerNumber,
         messages: []
       });
     }

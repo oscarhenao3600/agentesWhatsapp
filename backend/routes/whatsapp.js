@@ -53,14 +53,23 @@ router.post('/webhook', async (req, res) => {
         const value = body.entry[0].changes[0].value;
         const message = value.messages[0];
         
-        const from = message.from; // Número del cliente
+        const from = message.from; // Número del cliente o BSUID
         const text = message.text?.body; // Texto del mensaje
         const messageId = message.id; // ID del mensaje
         const phoneNumberId = value.metadata.phone_number_id; // ID del número que recibió el mensaje
 
+        // Limpiar el prefijo 'whatsapp:' si viene en el campo 'from' (común en algunas pasarelas)
+        const cleanFrom = from.startsWith('whatsapp:') ? from.replace('whatsapp:', '') : from;
+
+        // Obtener el nombre del perfil del contacto de WhatsApp si está disponible
+        let contactName = '';
+        if (value.contacts && value.contacts[0] && value.contacts[0].profile) {
+          contactName = value.contacts[0].profile.name || '';
+        }
+
         if (text) {
           // Procesar mensaje con nuestra lógica de IA (ahora vinculada a Branch)
-          await handleIncomingMessage(from, phoneNumberId, text, messageId);
+          await handleIncomingMessage(cleanFrom, phoneNumberId, text, messageId, contactName);
         }
       }
       res.sendStatus(200);
