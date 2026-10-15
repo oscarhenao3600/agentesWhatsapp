@@ -22,15 +22,28 @@ const branchSchema = new mongoose.Schema({
   },
   whatsappNumberId: {
     type: String,
-    required: [true, 'El ID del número de WhatsApp (Meta) es obligatorio']
+    default: ''
   },
   whatsappVerifyToken: {
     type: String,
-    required: [true, 'El token de verificación para webhooks es obligatorio']
+    default: ''
   },
   accessToken: {
     type: String,
-    required: [true, 'El Token de Acceso de Meta es obligatorio']
+    default: ''
+  },
+  gatewayType: {
+    type: String,
+    enum: ['whatsapp_web', 'meta'],
+    default: 'whatsapp_web'
+  },
+  whatsappConnected: {
+    type: Boolean,
+    default: false
+  },
+  whatsappPhoneNumber: {
+    type: String,
+    default: ''
   },
   isActive: {
     type: Boolean,

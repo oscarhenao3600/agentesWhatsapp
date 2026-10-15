@@ -71,6 +71,36 @@ exports.updateBranchAI = async (req, res) => {
   }
 };
 
+exports.testCalendarConfig = async (req, res) => {
+  try {
+    const branchId = req.params.id;
+    const { testCalendarConnection } = require('../services/googleCalendarService');
+    const aiConfig = await BranchAIConfig.findOne({ branch: branchId });
+
+    // Permite probar con datos enviados directamente en el body (antes de guardar) o los guardados en BD
+    const testConfig = {
+      googleCalendarId: req.body.googleCalendarId || aiConfig?.googleCalendarId || 'primary',
+      googleCredentialsJson: req.body.googleCredentialsJson || aiConfig?.googleCredentialsJson
+    };
+
+    if (!testConfig.googleCredentialsJson) {
+      return res.status(400).json({
+        success: false,
+        error: 'Debes ingresar el JSON de credenciales de la Cuenta de Servicio de Google.'
+      });
+    }
+
+    const result = await testCalendarConnection(testConfig);
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
 exports.getAllBranches = async (req, res) => {
   try {
     let query = {};

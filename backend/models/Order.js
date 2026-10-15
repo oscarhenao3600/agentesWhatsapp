@@ -57,7 +57,9 @@ const orderSchema = new mongoose.Schema({
   checkIn: Date,
   checkOut: Date,
   guestsCount: Number,
-  roomType: String
+  roomType: String,
+  googleCalendarEventId: String,
+  googleCalendarEventLink: String
 }, {
   timestamps: true
 });

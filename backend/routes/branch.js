@@ -6,7 +6,8 @@ const {
   getBranchDetails, 
   updateBranchAI,
   getAllBranches,
-  deleteBranch
+  deleteBranch,
+  testCalendarConfig
 } = require('../controllers/branchController');
 const { protect } = require('../middleware/auth');
 
@@ -15,6 +16,7 @@ router.get('/', protect, getAllBranches);
 router.get('/business/:businessId', protect, getBusinessBranches);
 router.get('/:id', protect, getBranchDetails);
 router.put('/:id/ai-config', protect, updateBranchAI);
+router.post('/:id/calendar/test', protect, testCalendarConfig);
 router.delete('/:id', protect, deleteBranch);
 
 module.exports = router;

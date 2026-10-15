@@ -61,6 +61,54 @@ const branchAIConfigSchema = new mongoose.Schema({
     type: String,
     default: '¡Hola! ¿En qué puedo ayudarte hoy?'
   },
+  // --- MODO PRUEBAS & PASARELAS ---
+  gatewayType: {
+    type: String,
+    enum: ['whatsapp_web', 'meta'],
+    default: 'whatsapp_web'
+  },
+  testMode: {
+    type: Boolean,
+    default: false
+  },
+  testPhoneNumber: {
+    type: String,
+    default: '' // Número de WhatsApp del cliente para la prueba (ej: +573001234567)
+  },
+  conciseMode: {
+    type: Boolean,
+    default: true // Respuestas concretas y breves (máx 2-3 frases) para WhatsApp
+  },
+  maxOutputTokens: {
+    type: Number,
+    default: 250
+  },
+  // --- GOOGLE CALENDAR / RESERVACIONES ---
+  calendarSyncEnabled: {
+    type: Boolean,
+    default: false
+  },
+  googleCalendarId: {
+    type: String,
+    default: 'primary' // 'primary' o correo electrónico del calendario de Google
+  },
+  googleServiceAccountEmail: {
+    type: String,
+    default: ''
+  },
+  googleCredentialsJson: {
+    type: String, // JSON de la Cuenta de Servicio de Google Cloud (encriptado con AES-256)
+    default: '',
+    set: function(value) {
+      if (value && !value.includes(':')) {
+        return encrypt(value);
+      }
+      return value;
+    },
+    get: function(value) {
+      return decrypt(value);
+    }
+  },
   isActive: {
     type: Boolean,
     default: true

@@ -35,15 +35,28 @@ router.get('/webhook', async (req, res) => {
   }
 });
 
+// Caché en memoria para deduplicación de mensajes de Meta (TTL de 10 minutos)
+const processedMessageIds = new Map();
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, time] of processedMessageIds.entries()) {
+    if (now - time > 10 * 60 * 1000) {
+      processedMessageIds.delete(id);
+    }
+  }
+}, 5 * 60 * 1000);
+
 // @desc    Recepción de mensajes de WhatsApp
 // @route   POST /api/whatsapp/webhook
 router.post('/webhook', async (req, res) => {
   console.log('--- POST /webhook ---');
-  console.log('Body:', JSON.stringify(req.body, null, 2));
   try {
     const body = req.body;
 
     if (body.object === 'whatsapp_business_account') {
+      // Responder 200 OK de inmediato a Meta para evitar reintentos por latencia
+      res.sendStatus(200);
+
       if (
         body.entry &&
         body.entry[0].changes &&
@@ -58,7 +71,16 @@ router.post('/webhook', async (req, res) => {
         const messageId = message.id; // ID del mensaje
         const phoneNumberId = value.metadata.phone_number_id; // ID del número que recibió el mensaje
 
-        // Limpiar el prefijo 'whatsapp:' si viene en el campo 'from' (común en algunas pasarelas)
+        // 1. Evitar procesamiento doble si Meta reintentó el webhook
+        if (messageId && processedMessageIds.has(messageId)) {
+          console.log(`[Deduplicación Meta] Mensaje ${messageId} ya fue procesado. Descartando duplicado.`);
+          return;
+        }
+        if (messageId) {
+          processedMessageIds.set(messageId, Date.now());
+        }
+
+        // Limpiar el prefijo 'whatsapp:' si viene en el campo 'from'
         const cleanFrom = from.startsWith('whatsapp:') ? from.replace('whatsapp:', '') : from;
 
         // Obtener el nombre del perfil del contacto de WhatsApp si está disponible
@@ -68,17 +90,19 @@ router.post('/webhook', async (req, res) => {
         }
 
         if (text) {
-          // Procesar mensaje con nuestra lógica de IA (ahora vinculada a Branch)
-          await handleIncomingMessage(cleanFrom, phoneNumberId, text, messageId, contactName);
+          // Procesar mensaje asíncronamente con nuestra lógica de IA
+          handleIncomingMessage(cleanFrom, phoneNumberId, text, messageId, contactName)
+            .catch(err => console.error('Error procesando mensaje Meta asíncrono:', err));
         }
       }
-      res.sendStatus(200);
     } else {
       res.sendStatus(404);
     }
   } catch (error) {
     console.error('Error en Webhook POST:', error);
-    res.sendStatus(500);
+    if (!res.headersSent) {
+      res.sendStatus(500);
+    }
   }
 });
 

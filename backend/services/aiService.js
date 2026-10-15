@@ -8,7 +8,7 @@ const OpenAI = require("openai");
  * @param {Array} history - Historial de la conversación para mantener contexto.
  * @returns {Promise<string>} - Respuesta generada.
  */
-const generateDynamicResponse = async (aiConfig, userMessage, history = []) => {
+const generateDynamicResponse = async (aiConfig, userMessage, history = [], extraContext = {}) => {
   // Configuración de Fallback por defecto
   let provider = aiConfig?.aiProvider || 'gemini';
   let modelName = aiConfig?.aiModel || 'gemini-2.5-flash';
@@ -62,6 +62,21 @@ const generateDynamicResponse = async (aiConfig, userMessage, history = []) => {
     `;
   }
 
+  const calendarContext = extraContext?.calendarAvailability ? `
+    CALENDARIO DE DISPONIBILIDAD (Google Calendar en tiempo real):
+    ${extraContext.calendarAvailability}
+    Instrucción de disponibilidad: Si el cliente consulta por fechas que se encuentran OCUPADAS, infórmale cortésmente y sugiere fechas disponibles cercanas. Si las fechas están libres, procede a solicitar los datos de la reserva normalmente.
+  ` : '';
+
+  const conciseInstructions = (aiConfig?.conciseMode !== false) ? `
+    REGLAS ESTRICTAS DE CONCISIÓN PARA WHATSAPP (Ahorro de Mensajes y Costos Meta):
+    1. Responde de forma DIRECTA, CONCRETA y BREVE (máximo 2 a 3 oraciones cortas).
+    2. Ve al grano: no uses fórmulas de cortesía largas, introducciones innecesarias ni repitas saludos si la conversación ya está activa.
+    3. Si necesitas recopilar datos del cliente (ej: fechas de check-in y check-out, cantidad de personas o productos para un pedido), pídela TODA de una sola vez en un único mensaje claro, en lugar de hacer múltiples preguntas en varios turnos.
+    4. Prohibido usar frases de cierre repetitivas como "¿En qué más te puedo colaborar hoy?" o "¿Deseas algo más?", ya que alargan la conversación y generan mensajes y cobros innecesarios.
+    5. Proporciona toda la respuesta en un solo mensaje fluido. No inventes precios ni datos no incluidos en el catálogo.
+  ` : '';
+
   const systemInstruction = `
     Actúa como un asistente para el negocio. Instrucciones: ${basePrompt}
     
@@ -69,16 +84,22 @@ const generateDynamicResponse = async (aiConfig, userMessage, history = []) => {
     ${aiConfig?.menuContent || 'No hay menú específico provisto.'}
     
     ${categoryInstructions}
+
+    ${calendarContext}
+
+    ${conciseInstructions}
   `;
+
+  const maxTokens = aiConfig?.maxOutputTokens || 250;
 
   try {
     if (provider === 'gemini') {
-      return await callGemini(apiKey, modelName, systemInstruction, userMessage, history, temperature);
+      return await callGemini(apiKey, modelName, systemInstruction, userMessage, history, temperature, maxTokens);
     } else if (provider === 'openai') {
-      return await callOpenAI(apiKey, modelName, systemInstruction, userMessage, history, temperature);
+      return await callOpenAI(apiKey, modelName, systemInstruction, userMessage, history, temperature, maxTokens);
     } else if (provider === 'deepseek') {
       // DeepSeek es compatible con la SDK de OpenAI, solo cambia el Base URL
-      return await callDeepSeek(apiKey, modelName, systemInstruction, userMessage, history, temperature);
+      return await callDeepSeek(apiKey, modelName, systemInstruction, userMessage, history, temperature, maxTokens);
     } else {
       throw new Error(`Proveedor de IA no soportado: ${provider}`);
     }
@@ -88,37 +109,55 @@ const generateDynamicResponse = async (aiConfig, userMessage, history = []) => {
   }
 };
 
-const callGemini = async (apiKey, modelName, systemInstruction, userMessage, history, temperature) => {
+const callGemini = async (apiKey, modelName, systemInstruction, userMessage, history, temperature, maxTokens = 250) => {
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: modelName });
 
-  const chat = model.startChat({
-    history: [
-      {
-        role: "user",
-        parts: [{ text: systemInstruction }],
-      },
-      {
-        role: "model",
-        parts: [{ text: "Entendido. Atenderé al cliente basándome en esas instrucciones y el menú." }],
-      },
-      ...history.map(msg => ({
-        role: msg.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: msg.content }]
-      }))
-    ],
-    generationConfig: {
-      temperature: temperature,
-      maxOutputTokens: 1000,
-    },
-  });
+  const executeChat = async (targetModel) => {
+    const model = genAI.getGenerativeModel({ model: targetModel });
 
-  const result = await chat.sendMessage(userMessage);
-  const response = await result.response;
-  return response.text();
+    const chat = model.startChat({
+      history: [
+        {
+          role: "user",
+          parts: [{ text: systemInstruction }],
+        },
+        {
+          role: "model",
+          parts: [{ text: "Entendido. Atenderé al cliente de forma breve, concisa y directa según tus instrucciones." }],
+        },
+        ...history.map(msg => ({
+          role: msg.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text: msg.content }]
+        }))
+      ],
+      generationConfig: {
+        temperature: temperature,
+        maxOutputTokens: maxTokens,
+      },
+    });
+
+    const result = await chat.sendMessage(userMessage);
+    const response = await result.response;
+    return response.text();
+  };
+
+  // Reintento con backoff en caso de 503 (alta demanda) o rate limit
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      return await executeChat(modelName);
+    } catch (err) {
+      const isRetryable = err.message.includes('503') || err.message.includes('demand') || err.message.includes('RESOURCE_EXHAUSTED');
+      if (isRetryable && attempt < 3) {
+        console.warn(`[Gemini Retry] Intento ${attempt} falló (${err.message.substring(0, 60)}). Reintentando en ${attempt * 1200}ms...`);
+        await new Promise(r => setTimeout(r, attempt * 1200));
+      } else {
+        throw err;
+      }
+    }
+  }
 };
 
-const callOpenAI = async (apiKey, modelName, systemInstruction, userMessage, history, temperature) => {
+const callOpenAI = async (apiKey, modelName, systemInstruction, userMessage, history, temperature, maxTokens = 250) => {
   const openai = new OpenAI({ apiKey: apiKey });
 
   const formattedHistory = history.map(msg => ({
@@ -136,13 +175,13 @@ const callOpenAI = async (apiKey, modelName, systemInstruction, userMessage, his
     model: modelName,
     messages: messages,
     temperature: temperature,
-    max_tokens: 1000,
+    max_tokens: maxTokens,
   });
 
   return response.choices[0].message.content;
 };
 
-const callDeepSeek = async (apiKey, modelName, systemInstruction, userMessage, history, temperature) => {
+const callDeepSeek = async (apiKey, modelName, systemInstruction, userMessage, history, temperature, maxTokens = 250) => {
   const openai = new OpenAI({ 
     apiKey: apiKey, 
     baseURL: 'https://api.deepseek.com' // Custom Base URL for DeepSeek
@@ -163,7 +202,7 @@ const callDeepSeek = async (apiKey, modelName, systemInstruction, userMessage, h
     model: modelName,
     messages: messages,
     temperature: temperature,
-    max_tokens: 1000,
+    max_tokens: maxTokens,
   });
 
   return response.choices[0].message.content;

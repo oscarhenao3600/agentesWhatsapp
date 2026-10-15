@@ -1,49 +1,99 @@
-services:
-  # Base de Datos MongoDB (SEGURA: Sin puertos expuestos al exterior)
-  mongodb:
-    image: mongo:latest
-    container_name: mongodb
-    ports:
-      - "48151:27017" # Puerto seguro expuesto para MongoDB Compass
-    volumes:
-      - mongo_data:/data/db
-    restart: unless-stopped
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
 
-  # Backend (Node.js)
-  backend:
-    build: ./backend
-    container_name: whatsapp_backend
+services:
+  # ===================================================================
+  # Base de Datos MongoDB
+  # Compatible con Raspberry Pi 3B+ (ARMv8 Cortex-A53 / aarch64)
+  # mongo:4.4.18 evita el error de 'Illegal instruction (core dumped)' de MongoDB 5+
+  # ===================================================================
+  mongodb:
+    image: mongo:4.4.18
+    container_name: agentes_whatsapp_db
+    # Limita la memoria caché de WiredTiger a 200MB para convivir con FormatosCuentas en el 1GB de RAM
+    command: mongod --wiredTigerCacheSizeGB 0.20
     ports:
-      - "4000:4000" # Puerto de producción personalizado
+      - "${MONGO_EXTERNAL_PORT:-48160}:27017"
+    volumes:
+      - agentes_whatsapp_mongodb_data:/data/db
+    networks:
+      - agentes_whatsapp_net
+    restart: unless-stopped
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 350M
+
+  # ===================================================================
+  # Backend (Node.js + Puppeteer / WhatsApp Web / Gemini AI)
+  # ===================================================================
+  backend:
+    build:
+      context: ./backend
+    container_name: agentes_whatsapp_backend
+    ports:
+      - "${BACKEND_PORT:-4050}:${BACKEND_PORT:-4050}"
     environment:
-      - MONGODB_URI=mongodb://mongodb:27017/agentes_whatsapp
-      - PORT=4000
-      - NODE_ENV=production
-    env_file:
-      - ./backend/.env
+      - PORT=${BACKEND_PORT:-4050}
+      - MONGODB_URI=${MONGODB_URI:-mongodb://mongodb:27017/agentes_whatsapp}
+      - JWT_SECRET=${JWT_SECRET}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - NODE_ENV=${NODE_ENV:-production}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - WHATSAPP_TOKEN=${WHATSAPP_TOKEN}
+      - WHATSAPP_PHONE_NUMBER_ID=${WHATSAPP_PHONE_NUMBER_ID}
+      - WHATSAPP_VERIFY_TOKEN=${WHATSAPP_VERIFY_TOKEN}
+      - PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+      - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+    volumes:
+      # Persistencia de la sesión autenticada de WhatsApp Web (evita re-escanear el código QR al reiniciar)
+      - agentes_whatsapp_auth:/app/.wwebjs_auth
     depends_on:
       - mongodb
+    networks:
+      - agentes_whatsapp_net
     restart: unless-stopped
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:' + (process.env.PORT || 4050) + '/ping', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 25s
+    deploy:
+      resources:
+        limits:
+          memory: 400M
 
+  # ===================================================================
   # Frontend (React + Nginx)
+  # ===================================================================
   frontend:
-    build: ./frontend
-    container_name: whatsapp_frontend
+    build:
+      context: ./frontend
+    container_name: agentes_whatsapp_frontend
     ports:
-      - "8080:80" # Acceso externo por el puerto 8080
+      - "${FRONTEND_PORT:-8090}:80"
     depends_on:
       - backend
+    networks:
+      - agentes_whatsapp_net
     restart: unless-stopped
-
-# mongo-express: (Opcional - solo para desarrollo)
-#   image: mongo-express
-#   container_name: mongo-express
-#   ports:
-#     - "8081:8081"
-#   environment:
-#     ME_CONFIG_MONGODB_SERVER: mongodb
-#   depends_on:
-#     - mongodb
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 120M
 
 volumes:
-  mongo_data:
+  agentes_whatsapp_mongodb_data:
+  agentes_whatsapp_auth:
+
+networks:
+  agentes_whatsapp_net:
+    name: agentes_whatsapp_net
+    driver: bridge

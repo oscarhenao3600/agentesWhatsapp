@@ -6,17 +6,26 @@ import {
   Save, 
   Bot, 
   FileText, 
-  Sparkles,
-  Info,
-  Key,
-  Cpu,
-  Settings,
-  UploadCloud,
-  Globe,
-  Trash2,
-  QrCode,
-  Link,
-  RefreshCw
+  Sparkles, 
+  Info, 
+  Key, 
+  Cpu, 
+  Settings, 
+  UploadCloud, 
+  Globe, 
+  Trash2, 
+  QrCode, 
+  Link, 
+  RefreshCw,
+  Shield,
+  Phone,
+  Zap,
+  CheckCircle2,
+  Calendar,
+  AlertCircle,
+  ExternalLink,
+  FileJson,
+  HelpCircle
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -31,16 +40,31 @@ const AIConfiguration = () => {
   // Configuración Principal
   const [config, setConfig] = useState({
     aiProvider: 'gemini',
-    aiModel: 'gemini-1.5-pro',
+    aiModel: 'gemini-2.5-flash',
     apiKey: '',
-    temperature: 0.7,
+    temperature: 0.4,
     businessType: 'other',
     personality: 'friendly',
     basePrompt: '',
     menuContent: '',
     welcomeMessage: '¡Hola! ¿En qué puedo ayudarte hoy?',
-    additionalParams: {}
+    additionalParams: {},
+    gatewayType: 'whatsapp_web',
+    testMode: false,
+    testPhoneNumber: '',
+    conciseMode: true,
+    maxOutputTokens: 250,
+    calendarSyncEnabled: false,
+    googleCalendarId: 'primary',
+    googleCredentialsJson: '',
+    googleServiceAccountEmail: ''
   });
+
+  // --- ESTADOS GOOGLE CALENDAR ---
+  const [testingCalendar, setTestingCalendar] = useState(false);
+  const [calendarTestResult, setCalendarTestResult] = useState(null);
+  const [showCalendarGuide, setShowCalendarGuide] = useState(false);
+  const calendarFileInputRef = useRef(null);
 
   // --- NUEVOS ESTADOS FASE 2: VINCULACIÓN WHATSAPP (QR) ---
   const [whatsappConnected, setWhatsappConnected] = useState(false);
@@ -72,9 +96,23 @@ const AIConfiguration = () => {
         setConfig(prev => ({ ...prev, ...data.aiConfig }));
       }
       
-      // Cargar estado de vinculación de WhatsApp desde el modelo branch
-      setWhatsappConnected(data.branch?.whatsappConnected || false);
-      setWhatsappNumber(data.branch?.whatsappPhoneNumber || '');
+      // Cargar estado de vinculación de WhatsApp
+      let isConnected = data.branch?.whatsappConnected || false;
+      let phoneNum = data.branch?.whatsappPhoneNumber || '';
+
+      // Consultar estado en vivo del gateway en el backend
+      try {
+        const gwRes = await axios.get(`/api/gateway/${branchId}/status`, authConfig);
+        if (gwRes.data?.status === 'connected') {
+          isConnected = true;
+          phoneNum = gwRes.data.connectedPhone || phoneNum;
+        } else if (gwRes.data?.status === 'qr_ready') {
+          setQrState({ url: gwRes.data.qrImage, secondsLeft: 60, status: 'active' });
+        }
+      } catch (gwErr) {}
+
+      setWhatsappConnected(isConnected);
+      setWhatsappNumber(phoneNum);
 
       // 2. Cargar recursos de Base de Conocimiento (RAG) desde MongoDB
       try {
@@ -110,62 +148,52 @@ const AIConfiguration = () => {
     }
   };
 
-  // --- MÓDULO FASE 2: VINCULACIÓN WHATSAPP GATEWAY (QR) ---
+  // --- MÓDULO: VINCULACIÓN WHATSAPP GATEWAY (QR REAL CON WHATSAPP-WEB.JS) ---
   
   const handleConnectWhatsApp = async () => {
-    setQrState({ url: null, secondsLeft: 60, status: 'loading' });
+    setQrState({ url: null, secondsLeft: 90, status: 'loading' });
     
     try {
       const authConfig = { headers: { Authorization: `Bearer ${user.token}` } };
-      // Simular llamada de API del Gateway. El backend generará la sesión.
-      const mockQR = 'https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=https://github.com/baptisteArno/typebot.io';
       
-      // Esperar 1.2 segundos para simular inicialización
-      await new Promise(resolve => setTimeout(resolve, 1200));
-
-      setQrState({
-        url: mockQR,
-        secondsLeft: 60,
-        status: 'active'
-      });
+      // Llamar al backend para inicializar whatsapp-web.js
+      await axios.post(`/api/gateway/${branchId}/qr`, {}, authConfig);
 
       if (qrTimerRef.current) clearInterval(qrTimerRef.current);
-      qrTimerRef.current = setInterval(() => {
-        setQrState(prev => {
-          if (prev.secondsLeft <= 1) {
-            clearInterval(qrTimerRef.current);
-            qrTimerRef.current = null;
-            return { ...prev, secondsLeft: 0, status: 'expired' };
-          }
-          return { ...prev, secondsLeft: prev.secondsLeft - 1 };
-        });
-      }, 1000);
+      
+      // Polling cada 2.5 segundos para chequear QR o estado de conexión
+      qrTimerRef.current = setInterval(async () => {
+        try {
+          const res = await axios.get(`/api/gateway/${branchId}/status`, authConfig);
+          const data = res.data;
 
-      // Simulación de emparejamiento exitoso a los 12 segundos
-      setTimeout(async () => {
-        setQrState(prev => {
-          if (prev.status === 'active') {
+          if (data.status === 'qr_ready' && data.qrImage) {
+            setQrState(prev => ({
+              url: data.qrImage,
+              secondsLeft: prev.secondsLeft > 0 ? prev.secondsLeft - 2 : 0,
+              status: 'active'
+            }));
+          } else if (data.status === 'connected') {
             clearInterval(qrTimerRef.current);
             qrTimerRef.current = null;
-            
-            // Actualizar estados
             setWhatsappConnected(true);
-            setWhatsappNumber('+57 318 4815 151');
-            
-            // Guardar vinculación en base de datos
-            axios.put(`/api/branch/${branchId}`, { whatsappConnected: true, whatsappPhoneNumber: '+57 318 4815 151' }, authConfig)
-              .catch(err => console.warn('Fallo persistir whatsappConnected'));
-
-            alert('¡WhatsApp vinculado exitosamente! El bot ahora responderá consultas 24/7 en este canal.');
-            return { url: null, secondsLeft: 60, status: 'idle' };
+            setWhatsappNumber(data.connectedPhone || '');
+            setQrState({ url: null, secondsLeft: 0, status: 'idle' });
+            alert('¡WhatsApp vinculado exitosamente! El bot está listo para responder.');
+          } else if (data.status === 'error') {
+            clearInterval(qrTimerRef.current);
+            qrTimerRef.current = null;
+            setQrState({ url: null, secondsLeft: 0, status: 'expired' });
           }
-          return prev;
-        });
-      }, 12000);
+        } catch (pollErr) {
+          console.error('Error consultando estado de WhatsApp Web:', pollErr);
+        }
+      }, 2500);
 
     } catch (err) {
-      alert('Error al solicitar Gateway de WhatsApp.');
-      setQrState({ url: null, secondsLeft: 60, status: 'idle' });
+      console.error('Error iniciando WhatsApp Web:', err);
+      alert('Error al iniciar WhatsApp Web: ' + (err.response?.data?.message || err.message));
+      setQrState({ url: null, secondsLeft: 0, status: 'idle' });
     }
   };
 
@@ -173,19 +201,91 @@ const AIConfiguration = () => {
     if (window.confirm('¿Seguro que deseas desvincular la cuenta de WhatsApp? El bot dejará de responder a los clientes.')) {
       try {
         const authConfig = { headers: { Authorization: `Bearer ${user.token}` } };
+        await axios.post(`/api/gateway/${branchId}/disconnect`, {}, authConfig);
+        
         setWhatsappConnected(false);
         setWhatsappNumber('');
-        
-        await axios.put(`/api/branch/${branchId}`, { whatsappConnected: false, whatsappPhoneNumber: '' }, authConfig);
         
         if (qrTimerRef.current) {
           clearInterval(qrTimerRef.current);
           qrTimerRef.current = null;
         }
-        setQrState({ url: null, secondsLeft: 60, status: 'idle' });
+        setQrState({ url: null, secondsLeft: 0, status: 'idle' });
+        alert('Sesión de WhatsApp Web desconectada.');
       } catch (err) {
         alert('Ocurrió un error al desvincular la sesión.');
       }
+    }
+  };
+
+  // --- MÓDULO: GOOGLE CALENDAR ---
+
+  const handleCalendarFileUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const jsonContent = event.target.result;
+        const parsed = JSON.parse(jsonContent);
+
+        if (!parsed.client_email || !parsed.private_key) {
+          alert('El archivo JSON debe contener "client_email" y "private_key". Asegúrate de descargar la clave de Service Account de Google Cloud.');
+          return;
+        }
+
+        setConfig(prev => ({
+          ...prev,
+          googleCredentialsJson: jsonContent,
+          googleServiceAccountEmail: parsed.client_email || ''
+        }));
+        setCalendarTestResult(null);
+      } catch (err) {
+        alert('El archivo no contiene un formato JSON válido.');
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const getDetectedServiceAccountEmail = () => {
+    if (!config.googleCredentialsJson) return '';
+    try {
+      const parsed = JSON.parse(config.googleCredentialsJson);
+      return parsed.client_email || '';
+    } catch (e) {
+      return '';
+    }
+  };
+
+  const handleTestCalendarConnection = async () => {
+    if (!config.googleCredentialsJson || !config.googleCredentialsJson.trim()) {
+      alert('Debes ingresar o cargar el archivo JSON de credenciales de Google antes de probar.');
+      return;
+    }
+
+    setTestingCalendar(true);
+    setCalendarTestResult(null);
+
+    try {
+      const authConfig = { headers: { Authorization: `Bearer ${user.token}` } };
+      const { data } = await axios.post(`/api/branch/${branchId}/calendar/test`, {
+        googleCalendarId: config.googleCalendarId || 'primary',
+        googleCredentialsJson: config.googleCredentialsJson
+      }, authConfig);
+
+      setCalendarTestResult({
+        success: true,
+        message: data.message || `¡Conexión exitosa con el calendario "${data.summary}"!`
+      });
+    } catch (error) {
+      const errMsg = error.response?.data?.error || error.response?.data?.message || error.message;
+      setCalendarTestResult({
+        success: false,
+        message: errMsg
+      });
+    } finally {
+      setTestingCalendar(false);
     }
   };
 
@@ -317,8 +417,9 @@ const AIConfiguration = () => {
       case 'gemini':
         return (
           <>
-            <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+            <option value="gemini-2.5-flash">Gemini 2.5 Flash (Recomendado - Rápido y Eficiente)</option>
             <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+            <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
           </>
         );
       case 'openai':
@@ -445,72 +546,369 @@ const AIConfiguration = () => {
             </div>
           </div>
 
-          {/* Tarjeta B: Canal de WhatsApp Linker (Fase 2) */}
+          {/* Tarjeta B: Canal de WhatsApp Linker (WhatsApp Web QR vs Meta Cloud API) */}
           <div className="glass-card flex-column" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <QrCode size={24} style={{ color: '#10b981' }} />
-                  <h3 style={{ fontSize: '20px' }}>WhatsApp Link (Gateway)</h3>
+                  <h3 style={{ fontSize: '20px' }}>Conexión WhatsApp</h3>
                 </div>
                 <span className={`badge ${whatsappConnected ? 'badge-success' : 'badge-danger'}`}>
                   {whatsappConnected ? 'Conectado' : 'Desconectado'}
                 </span>
               </div>
 
-              {whatsappConnected ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '10px 0' }}>
-                  <p style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
-                    Este agente está vinculado activamente al canal comercial y procesará transacciones 24/7.
+              {/* Selector de Pasarela */}
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: '600' }}>Método de Conexión</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setConfig({ ...config, gatewayType: 'whatsapp_web' })}
+                    className={config.gatewayType === 'whatsapp_web' ? 'btn-primary' : 'btn-secondary'}
+                    style={{ padding: '8px 10px', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                  >
+                    <QrCode size={15} /> WhatsApp Web (QR Demo)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfig({ ...config, gatewayType: 'meta' })}
+                    className={config.gatewayType === 'meta' ? 'btn-primary' : 'btn-secondary'}
+                    style={{ padding: '8px 10px', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                  >
+                    <Globe size={15} /> Meta Cloud API (Oficial)
+                  </button>
+                </div>
+              </div>
+
+              {config.gatewayType === 'whatsapp_web' ? (
+                <>
+                  {whatsappConnected ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '10px 0' }}>
+                      <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                        Este agente está vinculado activamente vía WhatsApp Web multi-dispositivo y procesará conversaciones reactivamente.
+                      </p>
+                      <div style={{ padding: '12px', background: 'var(--bg-secondary)', borderRadius: '12px', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <CheckCircle2 size={18} style={{ color: '#10b981' }} />
+                        <span>Número Vinculado: <strong style={{ color: 'var(--text-primary)' }}>{whatsappNumber}</strong></span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                        Escanea el código QR desde el WhatsApp de tu cliente o de prueba (Dispositivos Vinculados) para hacer la demo al instante.
+                      </p>
+                      
+                      {qrState.status === 'loading' && (
+                        <div className="qr-box-container" style={{ background: 'var(--bg-secondary)', height: '180px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderRadius: '12px' }}>
+                          <RefreshCw size={24} className="animate-spin" style={{ animation: 'spin 1.5s linear infinite', color: 'var(--accent-primary)' }} />
+                          <small style={{ marginTop: '10px', color: 'var(--text-secondary)' }}>Iniciando cliente whatsapp-web.js...</small>
+                        </div>
+                      )}
+
+                      {qrState.status === 'active' && qrState.url && (
+                        <div className="qr-box-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: '#fff', padding: '12px', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+                          <img src={qrState.url} alt="WhatsApp Web QR" style={{ width: '150px', height: '150px', borderRadius: '8px' }} />
+                          <span style={{ fontSize: '12px', color: '#1e293b', marginTop: '8px', fontWeight: '600' }}>
+                            ¡Escanea con WhatsApp!
+                          </span>
+                        </div>
+                      )}
+
+                      {qrState.status === 'expired' && (
+                        <div className="qr-box-container" style={{ background: 'var(--bg-secondary)', height: '180px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderRadius: '12px', border: '1px dashed #ef4444' }}>
+                          <span style={{ fontSize: '13px', fontWeight: '600', color: '#ef4444' }}>Código QR Expirado ⚠️</span>
+                          <button onClick={handleConnectWhatsApp} className="btn-secondary" style={{ fontSize: '11px', padding: '6px 12px', marginTop: '10px' }}>Generar Nuevo QR</button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                    Credenciales oficiales de WhatsApp Business Cloud API para clientes que han adquirido el sistema:
                   </p>
-                  <div style={{ padding: '12px', background: 'var(--bg-secondary)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
-                    Número Vinculado: <strong style={{ color: 'var(--text-primary)' }}>{whatsappNumber}</strong>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '4px', fontSize: '12px', fontWeight: '600' }}>WhatsApp Phone Number ID</label>
+                    <input 
+                      type="text" 
+                      className="input-field" 
+                      placeholder="Ej: 1251600254692830"
+                      value={branch?.whatsappNumberId || ''} 
+                      readOnly 
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '4px', fontSize: '12px', fontWeight: '600' }}>Webhook Verify Token</label>
+                    <input 
+                      type="text" 
+                      className="input-field" 
+                      value={branch?.whatsappVerifyToken || ''} 
+                      readOnly 
+                    />
                   </div>
                 </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <p style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
-                    Vincule la cuenta de WhatsApp de este comercio escaneando el código QR generado para que la IA responda por ti.
-                  </p>
-                  
-                  {qrState.status === 'loading' && (
-                    <div className="qr-box-container" style={{ background: 'var(--bg-secondary)', height: '180px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderRadius: '12px' }}>
-                      <RefreshCw size={24} className="animate-spin" style={{ animation: 'spin 1.5s linear infinite', color: 'var(--accent-primary)' }} />
-                      <small style={{ marginTop: '10px', color: 'var(--text-secondary)' }}>Generando sesión en puerto seguro...</small>
-                    </div>
-                  )}
-
-                  {qrState.status === 'active' && (
-                    <div className="qr-box-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: '#fff', padding: '12px', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
-                      <img src={qrState.url} alt="WhatsApp Link QR" style={{ width: '130px', height: '130px' }} />
-                      <span style={{ fontSize: '12px', color: '#1e293b', marginTop: '6px', fontWeight: '600' }}>Expira en: {qrState.secondsLeft}s</span>
-                    </div>
-                  )}
-
-                  {qrState.status === 'expired' && (
-                    <div className="qr-box-container" style={{ background: 'var(--bg-secondary)', height: '180px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderRadius: '12px', border: '1px dashed #ef4444' }}>
-                      <span style={{ fontSize: '13px', fontWeight: '600', color: '#ef4444' }}>Código QR Expirado ⚠️</span>
-                      <button onClick={handleConnectWhatsApp} className="btn-secondary" style={{ fontSize: '11px', padding: '6px 12px', marginTop: '10px' }}>Generar Nuevo QR</button>
-                    </div>
-                  )}
-                </div>
               )}
             </div>
 
-            <div style={{ marginTop: '20px' }}>
-              {whatsappConnected ? (
-                <button onClick={handleDisconnectWhatsApp} className="btn-secondary" style={{ width: '100%', borderColor: '#ef4444', color: '#ef4444', display: 'flex', justifyContent: 'center' }}>
-                  Desconectar Sesión de WhatsApp
-                </button>
-              ) : (
-                qrState.status === 'idle' && (
-                  <button onClick={handleConnectWhatsApp} className="btn-primary" style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
-                    Vincular WhatsApp (Generar QR)
+            {config.gatewayType === 'whatsapp_web' && (
+              <div style={{ marginTop: '20px' }}>
+                {whatsappConnected ? (
+                  <button onClick={handleDisconnectWhatsApp} className="btn-secondary" style={{ width: '100%', borderColor: '#ef4444', color: '#ef4444', display: 'flex', justifyContent: 'center' }}>
+                    Desconectar Sesión de WhatsApp
                   </button>
-                )
-              )}
+                ) : (
+                  qrState.status === 'idle' && (
+                    <button onClick={handleConnectWhatsApp} className="btn-primary" style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
+                      Vincular WhatsApp (Generar QR)
+                    </button>
+                  )
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* FILA INTERMEDIA: MODO PRUEBAS (LISTA BLANCA CLIENTE) & OPTIMIZACIÓN CONCISA */}
+        <div className="glass-card" style={{ border: config.testMode ? '1px solid #10b981' : '1px solid var(--border-color)', background: config.testMode ? 'rgba(16, 185, 129, 0.04)' : undefined }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Shield size={24} style={{ color: config.testMode ? '#10b981' : 'var(--accent-primary)' }} />
+              <div>
+                <h3 style={{ fontSize: '18px', margin: 0 }}>Modo Pruebas / Demostración Segura</h3>
+                <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>
+                  Aísla la prueba para que la IA solo responda al número del cliente o tester y no toque chats personales.
+                </p>
+              </div>
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px', background: 'var(--bg-secondary)', padding: '6px 14px', borderRadius: '20px', border: '1px solid var(--border-color)' }}>
+              <input 
+                type="checkbox" 
+                checked={config.testMode} 
+                onChange={(e) => setConfig({ ...config, testMode: e.target.checked })}
+                style={{ width: '18px', height: '18px', accentColor: '#10b981' }}
+              />
+              <span style={{ color: config.testMode ? '#10b981' : 'var(--text-secondary)' }}>
+                {config.testMode ? '🛡️ Modo Pruebas Activo' : 'Modo Pruebas Inactivo'}
+              </span>
+            </label>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px', alignItems: 'start' }}>
+            <div>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: '600' }}>
+                <Phone size={14} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'middle' }} />
+                Número Telefónico, Usuario o Nombre de WhatsApp para la Prueba
+              </label>
+              <input 
+                type="text" 
+                className="input-field" 
+                placeholder="Ej: 3113414361, Oscar Henao o +57 311 341 4361"
+                value={config.testPhoneNumber}
+                onChange={(e) => setConfig({ ...config, testPhoneNumber: e.target.value })}
+              />
+              <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
+                {config.testMode ? (
+                  <span style={{ color: '#10b981', fontWeight: '500' }}>
+                    🔒 <strong>Protección Total:</strong> El bot responderá <strong>ÚNICAMENTE</strong> a los mensajes que coincidan con este número, nombre o usuario de WhatsApp (ej: <code>3113414361</code> o <code>Oscar Henao</code>). Todos los demás chats personales serán ignorados.
+                  </span>
+                ) : (
+                  <span>Ingresa el número, nombre o usuario desde el que escribirás para la demo. Si activas el switch, solo interactuará con este contacto.</span>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <label style={{ fontSize: '13px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Zap size={14} style={{ color: '#f59e0b' }} /> Respuestas Concretas (Ahorro de Mensajes Meta)
+                </label>
+                <input 
+                  type="checkbox" 
+                  checked={config.conciseMode} 
+                  onChange={(e) => setConfig({ ...config, conciseMode: e.target.checked })}
+                  style={{ width: '16px', height: '16px', accentColor: '#f59e0b' }}
+                />
+              </div>
+              <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '0 0 10px 0', lineHeight: '1.4' }}>
+                Limita las respuestas a 1-3 frases breves y directas, pidiendo los datos clave de una sola vez para cerrar pedidos/reservas sin intercambios innecesarios ni sobrecostos.
+              </p>
+              
+              <div>
+                <label style={{ display: 'block', marginBottom: '4px', fontSize: '12px', fontWeight: '600' }}>
+                  Límite de Tokens por Respuesta: {config.maxOutputTokens || 250} tokens (~50-80 palabras)
+                </label>
+                <input 
+                  type="range" 
+                  min="150" 
+                  max="500" 
+                  step="25" 
+                  value={config.maxOutputTokens || 250}
+                  onChange={(e) => setConfig({ ...config, maxOutputTokens: parseInt(e.target.value, 10) })}
+                  style={{ width: '100%', accentColor: 'var(--accent-primary)' }}
+                />
+              </div>
             </div>
           </div>
+        </div>
+
+        {/* TARJETA: INTEGRACIÓN GOOGLE CALENDAR (RESERVACIONES Y AGENDAMIENTO) */}
+        <div className="glass-card" style={{ 
+          border: config.calendarSyncEnabled ? '1px solid #3b82f6' : '1px solid var(--border-color)', 
+          background: config.calendarSyncEnabled ? 'rgba(59, 130, 246, 0.03)' : undefined,
+          transition: 'all 0.3s ease'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Calendar size={24} style={{ color: config.calendarSyncEnabled ? '#3b82f6' : 'var(--accent-primary)' }} />
+              <div>
+                <h3 style={{ fontSize: '18px', margin: 0 }}>Sincronización con Google Calendar</h3>
+                <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>
+                  Revisa disponibilidad de fechas en tiempo real y agenda automáticamente las reservaciones confirmadas por WhatsApp.
+                </p>
+              </div>
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px', background: 'var(--bg-secondary)', padding: '6px 14px', borderRadius: '20px', border: '1px solid var(--border-color)' }}>
+              <input 
+                type="checkbox" 
+                checked={config.calendarSyncEnabled} 
+                onChange={(e) => setConfig({ ...config, calendarSyncEnabled: e.target.checked })}
+                style={{ width: '18px', height: '18px', accentColor: '#3b82f6' }}
+              />
+              <span style={{ color: config.calendarSyncEnabled ? '#3b82f6' : 'var(--text-secondary)' }}>
+                {config.calendarSyncEnabled ? '📅 Google Calendar Activo' : 'Google Calendar Inactivo'}
+              </span>
+            </label>
+          </div>
+
+          {config.calendarSyncEnabled ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '16px', borderTop: '1px solid var(--border-color)', paddingTop: '20px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: '600' }}>
+                    ID del Calendario de Google
+                  </label>
+                  <input 
+                    type="text" 
+                    className="input-field" 
+                    placeholder="primary o tunegocio@gmail.com"
+                    value={config.googleCalendarId || 'primary'}
+                    onChange={(e) => setConfig({ ...config, googleCalendarId: e.target.value })}
+                  />
+                  <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '6px', margin: 0 }}>
+                    Usa <code>primary</code> para tu calendario principal, o el correo / ID del calendario específico donde se agendarán las reservas.
+                  </p>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: '600' }}>
+                    Cargar Credenciales JSON (Cuenta de Servicio)
+                  </label>
+                  <input 
+                    type="file" 
+                    ref={calendarFileInputRef}
+                    accept=".json"
+                    style={{ display: 'none' }}
+                    onChange={handleCalendarFileUpload}
+                  />
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    <button 
+                      type="button" 
+                      className="btn-secondary"
+                      onClick={() => calendarFileInputRef.current?.click()}
+                      style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}
+                    >
+                      <FileJson size={16} /> Cargar Archivo .json
+                    </button>
+                    {getDetectedServiceAccountEmail() && (
+                      <span style={{ fontSize: '12px', color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <CheckCircle2 size={14} /> {getDetectedServiceAccountEmail()}
+                      </span>
+                    )}
+                  </div>
+                  <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '6px', margin: 0 }}>
+                    Sube la clave JSON descargada desde Google Cloud Console.
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: '600' }}>
+                    Contenido del JSON de Credenciales
+                  </label>
+                  <button 
+                    type="button"
+                    onClick={() => setShowCalendarGuide(!showCalendarGuide)}
+                    style={{ background: 'none', border: 'none', color: 'var(--accent-primary)', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                  >
+                    <HelpCircle size={14} /> {showCalendarGuide ? 'Ocultar guía' : '¿Cómo obtener estas credenciales?'}
+                  </button>
+                </div>
+
+                <textarea 
+                  className="input-field" 
+                  style={{ height: '90px', fontFamily: 'monospace', fontSize: '12px', resize: 'vertical' }}
+                  placeholder='{"type": "service_account", "project_id": "...", "private_key": "...", "client_email": "..."}'
+                  value={config.googleCredentialsJson || ''}
+                  onChange={(e) => setConfig({ ...config, googleCredentialsJson: e.target.value })}
+                />
+              </div>
+
+              {/* GUÍA DESPLEGABLE */}
+              {showCalendarGuide && (
+                <div style={{ background: 'var(--bg-secondary)', padding: '16px', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '13px', lineHeight: '1.6' }}>
+                  <h4 style={{ margin: '0 0 10px 0', fontSize: '14px', color: 'var(--accent-primary)' }}>
+                    Pasos sencillos para conectar Google Calendar (Cuenta de Servicio Gratuita):
+                  </h4>
+                  <ol style={{ paddingLeft: '20px', margin: 0 }}>
+                    <li>Ingresa a <a href="https://console.cloud.google.com/" target="_blank" rel="noopener noreferrer" style={{ color: '#3b82f6', textDecoration: 'underline' }}>Google Cloud Console</a> y activa la <strong>Google Calendar API</strong> en tu proyecto.</li>
+                    <li>Ve a <strong>IAM y administración &gt; Cuentas de servicio</strong>, crea una cuenta de servicio (ej: <code>reservas-whatsapp</code>) y en la pestaña <strong>Claves</strong> crea una clave nueva en formato <strong>JSON</strong>.</li>
+                    <li>Abre tu <a href="https://calendar.google.com/" target="_blank" rel="noopener noreferrer" style={{ color: '#3b82f6', textDecoration: 'underline' }}>Google Calendar</a>, entra a Configuración del calendario &gt; <em>"Compartir con personas específicas"</em> y añade el correo de la cuenta de servicio (terminado en <code>@...gserviceaccount.com</code>) otorgándole permisos de <strong>"Hacer cambios en eventos"</strong>.</li>
+                    <li>Carga o pega el archivo JSON aquí y presiona <em>Probar Conexión</em>.</li>
+                  </ol>
+                </div>
+              )}
+
+              {/* BOTÓN Y RESULTADO DE PRUEBA */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+                <button 
+                  type="button" 
+                  className="btn-primary"
+                  onClick={handleTestCalendarConnection}
+                  disabled={testingCalendar}
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#3b82f6' }}
+                >
+                  {testingCalendar ? <RefreshCw size={16} className="spin" /> : <Calendar size={16} />}
+                  {testingCalendar ? 'Verificando con Google...' : 'Probar Conexión con Google Calendar'}
+                </button>
+
+                {calendarTestResult && (
+                  <div style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '8px', 
+                    padding: '8px 14px', 
+                    borderRadius: '8px',
+                    fontSize: '13px',
+                    fontWeight: '500',
+                    background: calendarTestResult.success ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                    border: calendarTestResult.success ? '1px solid #10b981' : '1px solid #ef4444',
+                    color: calendarTestResult.success ? '#10b981' : '#ef4444'
+                  }}>
+                    {calendarTestResult.success ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+                    <span>{calendarTestResult.message}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '10px 0 0 0' }}>
+              Activa este switch si tu negocio requiere agendar reservaciones o citas en Google Calendar. El bot consultará disponibilidad y creará los eventos al confirmar con el cliente.
+            </p>
+          )}
         </div>
 
         {/* FILA 2: COMPORTAMIENTO & BASE DE CONOCIMIENTO (RAG) */}
