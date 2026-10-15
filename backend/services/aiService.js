@@ -77,6 +77,12 @@ const generateDynamicResponse = async (aiConfig, userMessage, history = [], extr
     5. Proporciona toda la respuesta en un solo mensaje fluido. No inventes precios ni datos no incluidos en el catálogo.
   ` : '';
 
+  const textOnlyRule = `
+    REGLA DE FORMATO DE ATENCIÓN (SOLO TEXTO Y EMOJIS):
+    Este canal de WhatsApp opera exclusivamente mediante mensajes de texto y emojis.
+    Si el cliente en su mensaje indica o hace referencia a que envió o desea enviar un audio, nota de voz, imagen, foto, captura de pantalla o documento (ej: "te mandé un audio", "mira la captura", "revisa la foto"), recuérdale de forma sutil, cordial y breve que por este chat únicamente puedes procesar mensajes de texto y emojis, e invítalo amablemente a escribir los detalles de su consulta en texto.
+  `;
+
   const systemInstruction = `
     Actúa como un asistente para el negocio. Instrucciones: ${basePrompt}
     
@@ -88,7 +94,10 @@ const generateDynamicResponse = async (aiConfig, userMessage, history = [], extr
     ${calendarContext}
 
     ${conciseInstructions}
+
+    ${textOnlyRule}
   `;
+
 
   const maxTokens = aiConfig?.maxOutputTokens || 250;
 

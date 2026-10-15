@@ -261,13 +261,15 @@ const initSession = async (branchId) => {
         }
       }
 
-      const messageText = msg.body;
+      const hasMedia = Boolean(msg.hasMedia || (msg.type && msg.type !== 'chat'));
+      const mediaType = hasMedia ? (msg.type || 'media') : null;
+      const messageText = msg.body || '';
       const messageId = msg.id?.id || `wweb_${Date.now()}`;
 
-      if (!messageText || !messageText.trim()) return;
+      if (!hasMedia && (!messageText || !messageText.trim())) return;
 
       const rawLid = msg.from.includes('@lid') ? msg.from.replace(/@lid/g, '').split(':')[0] : (contactNumber && contactNumber.length >= 14 ? contactNumber : '');
-      console.log(`[WhatsAppWeb] Procesando mensaje de ${cleanFrom} (LID: ${rawLid || 'N/A'}, Nombre: ${contactName}): "${messageText}"`);
+      console.log(`[WhatsAppWeb] Procesando mensaje de ${cleanFrom} (LID: ${rawLid || 'N/A'}, Nombre: ${contactName}, Tipo: ${msg.type || 'chat'}): "${messageText}"`);
 
       // Invocación al controlador unificado
       const { handleIncomingMessage } = require('../controllers/whatsappController');
@@ -281,6 +283,8 @@ const initSession = async (branchId) => {
         messageId: messageId,
         contactName: contactName,
         gateway: 'whatsapp_web',
+        hasMedia: hasMedia,
+        mediaType: mediaType,
         replyCallback: async (replyText) => {
           console.log(`[WhatsAppWeb] Enviando respuesta a ${msg.from}...`);
           try {

@@ -67,9 +67,15 @@ router.post('/webhook', async (req, res) => {
         const message = value.messages[0];
         
         const from = message.from; // Número del cliente o BSUID
-        const text = message.text?.body; // Texto del mensaje
+        const messageType = message.type || 'text'; // 'text', 'image', 'audio', 'voice', 'video', 'document', 'sticker', etc.
         const messageId = message.id; // ID del mensaje
         const phoneNumberId = value.metadata.phone_number_id; // ID del número que recibió el mensaje
+
+        const hasMedia = messageType !== 'text';
+        let text = message.text?.body || '';
+        if (hasMedia && !text && message[messageType]) {
+          text = message[messageType]?.caption || '';
+        }
 
         // 1. Evitar procesamiento doble si Meta reintentó el webhook
         if (messageId && processedMessageIds.has(messageId)) {
@@ -89,10 +95,18 @@ router.post('/webhook', async (req, res) => {
           contactName = value.contacts[0].profile.name || '';
         }
 
-        if (text) {
+        if (text || hasMedia) {
           // Procesar mensaje asíncronamente con nuestra lógica de IA
-          handleIncomingMessage(cleanFrom, phoneNumberId, text, messageId, contactName)
-            .catch(err => console.error('Error procesando mensaje Meta asíncrono:', err));
+          handleIncomingMessage({
+            from: cleanFrom,
+            phoneNumberId,
+            messageText: text,
+            messageId,
+            contactName,
+            gateway: 'meta',
+            hasMedia,
+            mediaType: hasMedia ? messageType : null
+          }).catch(err => console.error('Error procesando mensaje Meta asíncrono:', err));
         }
       }
     } else {

@@ -87,8 +87,8 @@ const isAuthorizedTester = (authorizedTarget, { cleanFrom, extraPhone, lid, rawS
  * 1. Objeto: handleIncomingMessage({ from, branchId, messageText, messageId, contactName, gateway, replyCallback })
  * 2. Posicional (Meta Webhook): handleIncomingMessage(from, phoneNumberId, messageText, messageId, contactName)
  */
-const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '') => {
-  let from, branchId, phoneNumberId, messageText, messageId, contactName, gateway, replyCallback;
+const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '', arg6 = null) => {
+  let from, branchId, phoneNumberId, messageText, messageId, contactName, gateway, replyCallback, mediaType, hasMedia;
   let extraPhone = '';
   let lid = '';
   let rawSender = '';
@@ -100,22 +100,27 @@ const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '') => {
     rawSender = arg1.rawSender || '';
     branchId = arg1.branchId;
     phoneNumberId = arg1.phoneNumberId;
-    messageText = arg1.messageText;
+    messageText = (arg1.messageText || '').trim();
     messageId = arg1.messageId;
     contactName = arg1.contactName || '';
     gateway = arg1.gateway || 'whatsapp_web';
     replyCallback = arg1.replyCallback;
+    hasMedia = Boolean(arg1.hasMedia);
+    mediaType = arg1.mediaType || null;
   } else {
     from = arg1;
     phoneNumberId = arg2;
-    messageText = arg3;
+    messageText = (arg3 || '').trim();
     messageId = arg4;
     contactName = arg5 || '';
     gateway = 'meta';
+    mediaType = arg6 || null;
+    hasMedia = Boolean(mediaType);
   }
 
   try {
-    if (!messageText || !messageText.trim()) return;
+    // Si no hay media y el texto está vacío, ignorar mensaje
+    if (!hasMedia && !messageText) return;
 
     // Normalizar el identificador del remitente
     let cleanFrom = from ? from.toString() : '';
@@ -178,6 +183,62 @@ const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '') => {
     } else if (contactName && !conversation.customerName) {
       conversation.customerName = contactName;
     }
+
+    // 5. VALIDACIÓN DE FORMATO: ¿Es media (imagen, audio, captura, etc.) o contenido sin texto alfanumérico ni emojis?
+    const hasAlphanumericOrEmoji = /[a-zA-Z0-9\u00C0-\u017F]|\p{Extended_Pictographic}/u.test(messageText);
+    const isNonTextOrUnsupported = hasMedia || !hasAlphanumericOrEmoji;
+
+    if (isNonTextOrUnsupported) {
+      let userDisplayContent = messageText;
+      let reminderResponse = '';
+
+      if (mediaType === 'audio' || mediaType === 'ptt' || mediaType === 'voice') {
+        userDisplayContent = messageText ? `[Nota de voz / Audio]: ${messageText}` : '[Nota de voz / Audio]';
+        reminderResponse = 'Hola 😊 Por este canal no puedo escuchar notas de voz ni audios, únicamente puedo procesar mensajes de texto y emojis. ¿Podrías escribir lo que necesitas para ayudarte con gusto?';
+      } else if (mediaType === 'image') {
+        userDisplayContent = messageText ? `[Imagen / Captura]: ${messageText}` : '[Imagen / Captura de pantalla]';
+        if (messageText) {
+          reminderResponse = 'Hola 😊 Por este medio no puedo visualizar imágenes ni capturas de pantalla, solo procesar texto y emojis. ¿Podrías indicarme por escrito los detalles de tu consulta para ayudarte con gusto?';
+        } else {
+          reminderResponse = 'Hola 😊 Te comento que por este chat no puedo ver imágenes ni capturas de pantalla, únicamente procesar mensajes de texto y emojis. Por favor, escríbeme los detalles de lo que necesitas y con gusto te colaboro.';
+        }
+      } else if (mediaType === 'video') {
+        userDisplayContent = messageText ? `[Video]: ${messageText}` : '[Video]';
+        reminderResponse = 'Hola 😊 Por este canal no puedo reproducir videos, únicamente puedo leer mensajes de texto y emojis. Por favor cuéntame por escrito lo que necesitas y con gusto te asisto.';
+      } else if (mediaType === 'document') {
+        userDisplayContent = messageText ? `[Documento adjunto]: ${messageText}` : '[Documento adjunto]';
+        reminderResponse = 'Hola 😊 Por este chat no puedo abrir documentos o archivos adjuntos, este canal funciona exclusivamente con texto y emojis. Por favor escríbeme tu consulta en texto y con gusto te ayudo.';
+      } else if (mediaType === 'sticker') {
+        userDisplayContent = '[Sticker]';
+        reminderResponse = 'Hola 😊 Te recuerdo de forma sutil que este chat es únicamente para mensajes de texto y emojis. Por favor escríbeme lo que necesitas por escrito y con gusto te ayudo.';
+      } else {
+        userDisplayContent = messageText || '[Contenido no admitido]';
+        reminderResponse = 'Hola 😊 Te recuerdo de forma sutil que este canal de atención funciona únicamente con mensajes de texto y emojis. Por favor escríbeme tu consulta por aquí y con mucho gusto te ayudo.';
+      }
+
+      console.log(`[Validación Texto] Detectado contenido no textual (${mediaType || 'sin texto alfanumérico/emoji'}) de ${cleanFrom}. Enviando recordatorio sutil.`);
+
+      // Guardar en el historial de la conversación
+      conversation.messages.push({ role: 'user', content: userDisplayContent });
+      conversation.messages.push({ role: 'assistant', content: reminderResponse });
+      conversation.lastInteraction = Date.now();
+      await conversation.save();
+
+      // Enviar respuesta por el canal correspondiente
+      if (gateway === 'whatsapp_web' && typeof replyCallback === 'function') {
+        await replyCallback(reminderResponse);
+        console.log(`[WhatsAppWeb] Recordatorio enviado a ${cleanFrom}: "${reminderResponse}"`);
+      } else if (branch.whatsappNumberId && branch.accessToken) {
+        await sendTextMessage(branch.whatsappNumberId, branch.accessToken, cleanFrom, reminderResponse);
+        if (messageId) {
+          await markAsRead(branch.whatsappNumberId, branch.accessToken, messageId);
+        }
+        console.log(`[MetaAPI] Recordatorio enviado a ${cleanFrom}: "${reminderResponse}"`);
+      }
+
+      return reminderResponse;
+    }
+
 
     // Historial reciente de los últimos 10 mensajes
     const history = conversation.messages.slice(-10).map(msg => ({
