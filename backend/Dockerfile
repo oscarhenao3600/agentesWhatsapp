@@ -14,8 +14,9 @@ RUN apk add --no-cache \
     ttf-freefont \
     tzdata
 
-# Configurar zona horaria de Colombia y ruta de Chromium para Puppeteer
+# Configurar zona horaria de Colombia, motor Baileys por defecto para Raspberry Pi y ruta de Chromium opcional
 ENV TZ=America/Bogota \
+    DEFAULT_GATEWAY_TYPE=baileys \
     PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 

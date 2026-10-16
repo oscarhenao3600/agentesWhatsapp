@@ -104,7 +104,7 @@ const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '', arg6 = n
     messageText = (arg1.messageText || '').trim();
     messageId = arg1.messageId;
     contactName = arg1.contactName || '';
-    gateway = arg1.gateway || 'whatsapp_web';
+    gateway = arg1.gateway || 'baileys';
     replyCallback = arg1.replyCallback;
     hasMedia = Boolean(arg1.hasMedia);
     mediaType = arg1.mediaType || null;
@@ -226,9 +226,9 @@ const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '', arg6 = n
       await conversation.save();
 
       // Enviar respuesta por el canal correspondiente
-      if (gateway === 'whatsapp_web' && typeof replyCallback === 'function') {
+      if ((gateway === 'whatsapp_web' || gateway === 'baileys') && typeof replyCallback === 'function') {
         await replyCallback(reminderResponse);
-        console.log(`[WhatsAppWeb] Recordatorio enviado a ${cleanFrom}: "${reminderResponse}"`);
+        console.log(`[${gateway}] Recordatorio enviado a ${cleanFrom}: "${reminderResponse}"`);
       } else if (branch.whatsappNumberId && branch.accessToken) {
         await sendTextMessage(branch.whatsappNumberId, branch.accessToken, cleanFrom, reminderResponse);
         if (messageId) {
@@ -284,10 +284,10 @@ const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '', arg6 = n
       conversation.lastInteraction = Date.now();
       await conversation.save();
 
-      // Enviar la respuesta por el canal correspondiente (WhatsApp Web o Meta API)
-      if (gateway === 'whatsapp_web' && typeof replyCallback === 'function') {
+      // Enviar la respuesta por el canal correspondiente (Baileys, WhatsApp Web o Meta API)
+      if ((gateway === 'whatsapp_web' || gateway === 'baileys') && typeof replyCallback === 'function') {
         await replyCallback(technicalFallbackMsg);
-        console.log(`[WhatsAppWeb] Contingencia (sin tokens/error IA) enviada a ${cleanFrom}: "${technicalFallbackMsg}"`);
+        console.log(`[${gateway}] Contingencia (sin tokens/error IA) enviada a ${cleanFrom}: "${technicalFallbackMsg}"`);
       } else if (branch.whatsappNumberId && branch.accessToken) {
         await sendTextMessage(branch.whatsappNumberId, branch.accessToken, cleanFrom, technicalFallbackMsg);
         if (messageId) {
@@ -398,10 +398,10 @@ const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '', arg6 = n
     }
 
     // 9. Enviar la respuesta por el canal correspondiente
-    if (gateway === 'whatsapp_web' && typeof replyCallback === 'function') {
-      // Envío mediante WhatsApp Web (whatsapp-web.js)
+    if ((gateway === 'whatsapp_web' || gateway === 'baileys') && typeof replyCallback === 'function') {
+      // Envío mediante Baileys o WhatsApp Web (whatsapp-web.js)
       await replyCallback(cleanResponse);
-      console.log(`[WhatsAppWeb] Respuesta enviada a ${cleanFrom}: "${cleanResponse}"`);
+      console.log(`[${gateway}] Respuesta enviada a ${cleanFrom}: "${cleanResponse}"`);
     } else if (branch.whatsappNumberId && branch.accessToken) {
       // Envío mediante Meta Cloud API
       await sendTextMessage(branch.whatsappNumberId, branch.accessToken, cleanFrom, cleanResponse);
@@ -420,10 +420,10 @@ const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '', arg6 = n
     const contactPhone = branch?.phone ? ` al ${branch.phone}` : '';
     const technicalFallbackMsg = `Lo lamento, por el momento no te puedo seguir atendiendo estamos presentando problemas técnicos por favor comunícate con un agente humano${contactPhone}.`;
 
-    if (gateway === 'whatsapp_web' && typeof replyCallback === 'function') {
+    if ((gateway === 'whatsapp_web' || gateway === 'baileys') && typeof replyCallback === 'function') {
       try {
         await replyCallback(technicalFallbackMsg);
-        console.log(`[WhatsAppWeb] Mensaje de contingencia enviado a ${cleanFrom}: "${technicalFallbackMsg}"`);
+        console.log(`[${gateway}] Mensaje de contingencia enviado a ${cleanFrom}: "${technicalFallbackMsg}"`);
       } catch (replyErr) {
         console.error('Error enviando mensaje de contingencia:', replyErr.message);
       }

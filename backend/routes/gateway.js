@@ -2,8 +2,10 @@ const express = require('express');
 const router = express.Router();
 const { protect } = require('../middleware/auth');
 const Branch = require('../models/Branch');
+const BranchAIConfig = require('../models/BranchAIConfig');
 const Business = require('../models/Business');
-const { initSession, getSessionStatus, disconnectSession } = require('../services/whatsappWebService');
+const whatsappWebService = require('../services/whatsappWebService');
+const baileysService = require('../services/baileysService');
 
 // Helper para validar acceso a la sucursal
 const validateAccess = async (userId, userRole, branchId) => {
@@ -15,7 +17,7 @@ const validateAccess = async (userId, userRole, branchId) => {
   return business.owner.toString() === userId.toString();
 };
 
-// @desc    Iniciar o solicitar QR de WhatsApp Web para demostraciones
+// @desc    Iniciar o solicitar QR de WhatsApp (Baileys por defecto o WhatsApp Web con Chromium)
 // @route   POST /api/gateway/:branchId/qr
 router.post('/:branchId/qr', protect, async (req, res) => {
   try {
@@ -25,10 +27,41 @@ router.post('/:branchId/qr', protect, async (req, res) => {
       return res.status(403).json({ message: 'No tienes permisos sobre esta sucursal' });
     }
 
-    const sessionState = await initSession(branchId);
+    const branch = await Branch.findById(branchId);
+    const aiConfig = await BranchAIConfig.findOne({ branch: branchId });
+
+    // Determinar motor seleccionado (prioriza body -> aiConfig -> branch -> default 'baileys')
+    const defaultEngine = process.env.DEFAULT_GATEWAY_TYPE || 'baileys';
+    let selectedGateway = req.body?.gatewayType || aiConfig?.gatewayType || branch?.gatewayType || defaultEngine;
+    if (!['baileys', 'whatsapp_web'].includes(selectedGateway)) {
+      selectedGateway = 'baileys';
+    }
+
+    // Persistir la elección de motor en Branch y BranchAIConfig
+    await Branch.findByIdAndUpdate(branchId, { gatewayType: selectedGateway });
+    if (aiConfig) {
+      aiConfig.gatewayType = selectedGateway;
+      await aiConfig.save();
+    }
+
+    let sessionState;
+    if (selectedGateway === 'whatsapp_web') {
+      // Si había una sesión activa en Baileys, cerrarla antes de iniciar Chromium
+      if (baileysService.hasActiveSession(branchId)) {
+        await baileysService.disconnectSession(branchId, false);
+      }
+      sessionState = await whatsappWebService.initSession(branchId);
+    } else {
+      // Por defecto: Baileys (WebSockets ligeros, sin Chromium)
+      if (whatsappWebService.hasActiveSession(branchId)) {
+        await whatsappWebService.disconnectSession(branchId, false);
+      }
+      sessionState = await baileysService.initSession(branchId);
+    }
+
     res.json(sessionState);
   } catch (error) {
-    console.error('Error iniciando sesión WhatsApp Web:', error);
+    console.error('Error iniciando sesión de WhatsApp:', error);
     res.status(500).json({ message: error.message });
   }
 });
@@ -43,15 +76,30 @@ router.get('/:branchId/status', protect, async (req, res) => {
       return res.status(403).json({ message: 'No tienes permisos sobre esta sucursal' });
     }
 
-    const sessionState = getSessionStatus(branchId);
-    res.json(sessionState);
+    if (baileysService.hasActiveSession(branchId)) {
+      return res.json(baileysService.getSessionStatus(branchId));
+    }
+
+    if (whatsappWebService.hasActiveSession(branchId)) {
+      return res.json(whatsappWebService.getSessionStatus(branchId));
+    }
+
+    const branch = await Branch.findById(branchId).select('gatewayType');
+    const gatewayType = branch?.gatewayType || process.env.DEFAULT_GATEWAY_TYPE || 'baileys';
+
+    res.json({
+      status: 'disconnected',
+      qrImage: null,
+      connectedPhone: '',
+      gatewayType
+    });
   } catch (error) {
-    console.error('Error consultando estado WhatsApp Web:', error);
+    console.error('Error consultando estado de WhatsApp:', error);
     res.status(500).json({ message: error.message });
   }
 });
 
-// @desc    Desconectar sesión de WhatsApp Web
+// @desc    Desconectar sesión activa de WhatsApp (Baileys o WhatsApp Web)
 // @route   POST /api/gateway/:branchId/disconnect
 router.post('/:branchId/disconnect', protect, async (req, res) => {
   try {
@@ -61,10 +109,22 @@ router.post('/:branchId/disconnect', protect, async (req, res) => {
       return res.status(403).json({ message: 'No tienes permisos sobre esta sucursal' });
     }
 
-    const result = await disconnectSession(branchId);
-    res.json(result);
+    if (baileysService.hasActiveSession(branchId)) {
+      await baileysService.disconnectSession(branchId, true);
+    }
+    if (whatsappWebService.hasActiveSession(branchId)) {
+      await whatsappWebService.disconnectSession(branchId, true);
+    }
+
+    // Asegurar actualización en BD incluso si la sesión en memoria ya no existía
+    await Branch.findByIdAndUpdate(branchId, {
+      whatsappConnected: false,
+      whatsappPhoneNumber: ''
+    });
+
+    res.json({ success: true, message: 'Sesión de WhatsApp desconectada correctamente' });
   } catch (error) {
-    console.error('Error desconectando sesión WhatsApp Web:', error);
+    console.error('Error desconectando sesión de WhatsApp:', error);
     res.status(500).json({ message: error.message });
   }
 });

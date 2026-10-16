@@ -1,4 +1,3 @@
-const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode');
 const path = require('path');
 const fs = require('fs');
@@ -17,18 +16,27 @@ const sessions = new Map();
 /**
  * Obtiene el estado actual de la sesión de una sucursal.
  * @param {string} branchId 
- * @returns {Object} { status, qrImage, connectedPhone }
+ * @returns {Object} { status, qrImage, connectedPhone, gatewayType }
  */
 const getSessionStatus = (branchId) => {
   const session = sessions.get(branchId.toString());
   if (!session) {
-    return { status: 'disconnected', qrImage: null, connectedPhone: '' };
+    return { status: 'disconnected', qrImage: null, connectedPhone: '', gatewayType: 'whatsapp_web' };
   }
   return {
     status: session.status,
     qrImage: session.qrImage,
-    connectedPhone: session.connectedPhone || ''
+    connectedPhone: session.connectedPhone || '',
+    gatewayType: 'whatsapp_web'
   };
+};
+
+/**
+ * Verifica si existe una sesión activa o inicializando en whatsapp-web.js para una sucursal
+ */
+const hasActiveSession = (branchId) => {
+  const session = sessions.get(branchId.toString());
+  return Boolean(session && session.status !== 'disconnected');
 };
 
 /**
@@ -37,17 +45,18 @@ const getSessionStatus = (branchId) => {
  * @returns {Promise<Object>} Estado de la sesión
  */
 const initSession = async (branchId) => {
+  const { Client, LocalAuth } = require('whatsapp-web.js');
   const idStr = branchId.toString();
   let session = sessions.get(idStr);
 
   // Si ya está conectada, devolver el estado
   if (session && session.status === 'connected') {
-    return { status: 'connected', qrImage: null, connectedPhone: session.connectedPhone };
+    return { status: 'connected', qrImage: null, connectedPhone: session.connectedPhone, gatewayType: 'whatsapp_web' };
   }
 
   // Si ya está generando QR o esperando escaneo, devolver el estado actual
   if (session && session.status === 'qr_ready') {
-    return { status: 'qr_ready', qrImage: session.qrImage, connectedPhone: '' };
+    return { status: 'qr_ready', qrImage: session.qrImage, connectedPhone: '', gatewayType: 'whatsapp_web' };
   }
 
   // Si había una sesión anterior no conectada, destruirla antes de iniciar una nueva
@@ -417,14 +426,15 @@ const initSession = async (branchId) => {
     session.lastError = err.message;
   });
 
-  return { status: 'initializing', qrImage: null, connectedPhone: '' };
+  return { status: 'initializing', qrImage: null, connectedPhone: '', gatewayType: 'whatsapp_web' };
 };
 
 /**
  * Desconecta la sesión activa de WhatsApp Web de una sucursal.
  * @param {string} branchId 
+ * @param {boolean} updateDb
  */
-const disconnectSession = async (branchId) => {
+const disconnectSession = async (branchId, updateDb = true) => {
   const idStr = branchId.toString();
   const session = sessions.get(idStr);
 
@@ -439,13 +449,15 @@ const disconnectSession = async (branchId) => {
 
   sessions.delete(idStr);
 
-  try {
-    await Branch.findByIdAndUpdate(branchId, {
-      whatsappConnected: false,
-      whatsappPhoneNumber: ''
-    });
-  } catch (dbErr) {
-    console.error('[WhatsAppWeb] Error actualizando desconexión en BD:', dbErr);
+  if (updateDb) {
+    try {
+      await Branch.findByIdAndUpdate(branchId, {
+        whatsappConnected: false,
+        whatsappPhoneNumber: ''
+      });
+    } catch (dbErr) {
+      console.error('[WhatsAppWeb] Error actualizando desconexión en BD:', dbErr);
+    }
   }
 
   return { success: true, message: 'Sesión de WhatsApp Web desconectada' };
@@ -469,6 +481,7 @@ const autoReconnectBranches = async () => {
 module.exports = {
   initSession,
   getSessionStatus,
+  hasActiveSession,
   disconnectSession,
   autoReconnectBranches
 };

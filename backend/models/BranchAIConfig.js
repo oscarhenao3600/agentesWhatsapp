@@ -64,8 +64,8 @@ const branchAIConfigSchema = new mongoose.Schema({
   // --- MODO PRUEBAS & PASARELAS ---
   gatewayType: {
     type: String,
-    enum: ['whatsapp_web', 'meta'],
-    default: 'whatsapp_web'
+    enum: ['baileys', 'whatsapp_web', 'meta'],
+    default: () => process.env.DEFAULT_GATEWAY_TYPE || 'baileys'
   },
   testMode: {
     type: Boolean,

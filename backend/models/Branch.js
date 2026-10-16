@@ -34,8 +34,8 @@ const branchSchema = new mongoose.Schema({
   },
   gatewayType: {
     type: String,
-    enum: ['whatsapp_web', 'meta'],
-    default: 'whatsapp_web'
+    enum: ['baileys', 'whatsapp_web', 'meta'],
+    default: () => process.env.DEFAULT_GATEWAY_TYPE || 'baileys'
   },
   whatsappConnected: {
     type: Boolean,

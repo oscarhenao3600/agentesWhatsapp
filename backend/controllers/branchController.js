@@ -65,6 +65,11 @@ exports.updateBranchAI = async (req, res) => {
     }
 
     await aiConfig.save();
+
+    if (req.body.gatewayType && ['baileys', 'whatsapp_web', 'meta'].includes(req.body.gatewayType)) {
+      await Branch.findByIdAndUpdate(req.params.id, { gatewayType: req.body.gatewayType });
+    }
+
     res.json(aiConfig);
   } catch (error) {
     res.status(400).json({ message: error.message });

@@ -49,7 +49,7 @@ const AIConfiguration = () => {
     menuContent: '',
     welcomeMessage: '¡Hola! ¿En qué puedo ayudarte hoy?',
     additionalParams: {},
-    gatewayType: 'whatsapp_web',
+    gatewayType: 'baileys',
     testMode: false,
     testPhoneNumber: '',
     conciseMode: true,
@@ -93,7 +93,11 @@ const AIConfiguration = () => {
       const { data } = await axios.get(`/api/branch/${branchId}`, authConfig);
       setBranch(data.branch);
       if (data.aiConfig) {
-        setConfig(prev => ({ ...prev, ...data.aiConfig }));
+        setConfig(prev => ({
+          ...prev,
+          ...data.aiConfig,
+          gatewayType: data.aiConfig.gatewayType || data.branch?.gatewayType || 'baileys'
+        }));
       }
       
       // Cargar estado de vinculación de WhatsApp
@@ -103,6 +107,9 @@ const AIConfiguration = () => {
       // Consultar estado en vivo del gateway en el backend
       try {
         const gwRes = await axios.get(`/api/gateway/${branchId}/status`, authConfig);
+        if (gwRes.data?.gatewayType) {
+          setConfig(prev => ({ ...prev, gatewayType: gwRes.data.gatewayType }));
+        }
         if (gwRes.data?.status === 'connected') {
           isConnected = true;
           phoneNum = gwRes.data.connectedPhone || phoneNum;
@@ -148,16 +155,19 @@ const AIConfiguration = () => {
     }
   };
 
-  // --- MÓDULO: VINCULACIÓN WHATSAPP GATEWAY (QR REAL CON WHATSAPP-WEB.JS) ---
+  // --- MÓDULO: VINCULACIÓN WHATSAPP GATEWAY (BAILEYS POR DEFECTO O WHATSAPP-WEB.JS) ---
   
   const handleConnectWhatsApp = async () => {
     setQrState({ url: null, secondsLeft: 90, status: 'loading' });
     
     try {
       const authConfig = { headers: { Authorization: `Bearer ${user.token}` } };
+      const selectedEngine = ['baileys', 'whatsapp_web'].includes(config.gatewayType)
+        ? config.gatewayType
+        : 'baileys';
       
-      // Llamar al backend para inicializar whatsapp-web.js
-      await axios.post(`/api/gateway/${branchId}/qr`, {}, authConfig);
+      // Llamar al backend para inicializar el motor elegido (Baileys sin Chromium o whatsapp-web.js)
+      await axios.post(`/api/gateway/${branchId}/qr`, { gatewayType: selectedEngine }, authConfig);
 
       if (qrTimerRef.current) clearInterval(qrTimerRef.current);
       
@@ -186,13 +196,13 @@ const AIConfiguration = () => {
             setQrState({ url: null, secondsLeft: 0, status: 'expired' });
           }
         } catch (pollErr) {
-          console.error('Error consultando estado de WhatsApp Web:', pollErr);
+          console.error('Error consultando estado de WhatsApp:', pollErr);
         }
       }, 2500);
 
     } catch (err) {
-      console.error('Error iniciando WhatsApp Web:', err);
-      alert('Error al iniciar WhatsApp Web: ' + (err.response?.data?.message || err.message));
+      console.error('Error iniciando WhatsApp:', err);
+      alert('Error al iniciar WhatsApp: ' + (err.response?.data?.message || err.message));
       setQrState({ url: null, secondsLeft: 0, status: 'idle' });
     }
   };
@@ -211,7 +221,7 @@ const AIConfiguration = () => {
           qrTimerRef.current = null;
         }
         setQrState({ url: null, secondsLeft: 0, status: 'idle' });
-        alert('Sesión de WhatsApp Web desconectada.');
+        alert('Sesión de WhatsApp desconectada.');
       } catch (err) {
         alert('Ocurrió un error al desvincular la sesión.');
       }
@@ -564,14 +574,24 @@ const AIConfiguration = () => {
               {/* Selector de Pasarela */}
               <div style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: '600' }}>Método de Conexión</label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setConfig({ ...config, gatewayType: 'baileys' })}
+                    className={config.gatewayType === 'baileys' ? 'btn-primary' : 'btn-secondary'}
+                    style={{ padding: '8px 10px', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                    title="Conecta por WebSockets directos sin abrir Chromium (~25MB RAM). Ideal para Raspberry Pi."
+                  >
+                    <Zap size={15} /> Baileys QR (Ligero / Pi)
+                  </button>
                   <button
                     type="button"
                     onClick={() => setConfig({ ...config, gatewayType: 'whatsapp_web' })}
                     className={config.gatewayType === 'whatsapp_web' ? 'btn-primary' : 'btn-secondary'}
                     style={{ padding: '8px 10px', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                    title="Conecta usando whatsapp-web.js sobre navegador Chromium Headless."
                   >
-                    <QrCode size={15} /> WhatsApp Web (QR Demo)
+                    <QrCode size={15} /> WhatsApp Web (Chromium)
                   </button>
                   <button
                     type="button"
@@ -579,17 +599,19 @@ const AIConfiguration = () => {
                     className={config.gatewayType === 'meta' ? 'btn-primary' : 'btn-secondary'}
                     style={{ padding: '8px 10px', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                   >
-                    <Globe size={15} /> Meta Cloud API (Oficial)
+                    <Globe size={15} /> Meta Cloud API
                   </button>
                 </div>
               </div>
 
-              {config.gatewayType === 'whatsapp_web' ? (
+              {(config.gatewayType === 'baileys' || config.gatewayType === 'whatsapp_web') ? (
                 <>
                   {whatsappConnected ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '10px 0' }}>
                       <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                        Este agente está vinculado activamente vía WhatsApp Web multi-dispositivo y procesará conversaciones reactivamente.
+                        {config.gatewayType === 'baileys'
+                          ? 'Este agente está vinculado vía Baileys (WebSockets directos sin Chromium, ultra bajo consumo de RAM en Raspberry Pi).'
+                          : 'Este agente está vinculado activamente vía WhatsApp Web (Chromium) y procesará conversaciones reactivamente.'}
                       </p>
                       <div style={{ padding: '12px', background: 'var(--bg-secondary)', borderRadius: '12px', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <CheckCircle2 size={18} style={{ color: '#10b981' }} />
@@ -599,21 +621,27 @@ const AIConfiguration = () => {
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                       <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                        Escanea el código QR desde el WhatsApp de tu cliente o de prueba (Dispositivos Vinculados) para hacer la demo al instante.
+                        {config.gatewayType === 'baileys'
+                          ? '⚡ Modo Ligero (Predeterminado en Raspberry Pi): Escanea el QR sin usar Chromium (~90% menos memoria RAM).'
+                          : '🖥️ Modo Chromium: Escanea el código QR usando el motor tradicional whatsapp-web.js.'}
                       </p>
                       
                       {qrState.status === 'loading' && (
                         <div className="qr-box-container" style={{ background: 'var(--bg-secondary)', height: '180px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderRadius: '12px' }}>
                           <RefreshCw size={24} className="animate-spin" style={{ animation: 'spin 1.5s linear infinite', color: 'var(--accent-primary)' }} />
-                          <small style={{ marginTop: '10px', color: 'var(--text-secondary)' }}>Iniciando cliente whatsapp-web.js...</small>
+                          <small style={{ marginTop: '10px', color: 'var(--text-secondary)' }}>
+                            {config.gatewayType === 'baileys'
+                              ? 'Iniciando socket ligero Baileys (sin Chromium)...'
+                              : 'Iniciando navegador Chromium (whatsapp-web.js)...'}
+                          </small>
                         </div>
                       )}
 
                       {qrState.status === 'active' && qrState.url && (
                         <div className="qr-box-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: '#fff', padding: '12px', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
-                          <img src={qrState.url} alt="WhatsApp Web QR" style={{ width: '150px', height: '150px', borderRadius: '8px' }} />
+                          <img src={qrState.url} alt="WhatsApp QR" style={{ width: '150px', height: '150px', borderRadius: '8px' }} />
                           <span style={{ fontSize: '12px', color: '#1e293b', marginTop: '8px', fontWeight: '600' }}>
-                            ¡Escanea con WhatsApp!
+                            ¡Escanea con WhatsApp! ({config.gatewayType === 'baileys' ? 'Baileys Ligero' : 'WhatsApp Web'})
                           </span>
                         </div>
                       )}
@@ -655,7 +683,7 @@ const AIConfiguration = () => {
               )}
             </div>
 
-            {config.gatewayType === 'whatsapp_web' && (
+            {(config.gatewayType === 'baileys' || config.gatewayType === 'whatsapp_web') && (
               <div style={{ marginTop: '20px' }}>
                 {whatsappConnected ? (
                   <button onClick={handleDisconnectWhatsApp} className="btn-secondary" style={{ width: '100%', borderColor: '#ef4444', color: '#ef4444', display: 'flex', justifyContent: 'center' }}>
@@ -664,7 +692,9 @@ const AIConfiguration = () => {
                 ) : (
                   qrState.status === 'idle' && (
                     <button onClick={handleConnectWhatsApp} className="btn-primary" style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
-                      Vincular WhatsApp (Generar QR)
+                      {config.gatewayType === 'baileys'
+                        ? 'Vincular con Baileys (QR Ligero)'
+                        : 'Vincular con WhatsApp Web (QR Chromium)'}
                     </button>
                   )
                 )}

@@ -10,8 +10,10 @@ const connectDB = require('./config/db');
 
 // Conectar a la base de datos y restaurar sesiones activas
 connectDB().then(() => {
+  const { autoReconnectBaileysBranches } = require('./services/baileysService');
   const { autoReconnectBranches } = require('./services/whatsappWebService');
   setTimeout(() => {
+    autoReconnectBaileysBranches();
     autoReconnectBranches();
   }, 2000);
 });
