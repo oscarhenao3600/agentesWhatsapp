@@ -94,8 +94,12 @@ const initSession = async (branchId) => {
     '--disable-dev-shm-usage',
     '--disable-accelerated-2d-canvas',
     '--no-first-run',
-    '--no-zygote',
-    '--disable-gpu'
+    '--disable-gpu',
+    '--disable-extensions',
+    '--disable-background-networking',
+    '--disable-sync',
+    '--mute-audio',
+    '--js-flags=--max-old-space-size=256'
   ];
 
   const puppeteerConfig = {
@@ -112,10 +116,29 @@ const initSession = async (branchId) => {
       clientId: `branch_${idStr}`,
       dataPath: authDataPath
     }),
+    takeoverOnConflict: true,
+    takeoverTimeoutMs: 3000,
     puppeteer: puppeteerConfig
   });
 
   session.client = client;
+
+  // 0. Eventos de progreso de sincronización y estado de conexión
+  client.on('loading_screen', (percent, message) => {
+    console.log(`[WhatsAppWeb] Sincronizando sucursal ${idStr}: ${percent}% (${message})`);
+  });
+
+  client.on('change_state', (state) => {
+    console.log(`[WhatsAppWeb] Cambio de estado en sucursal ${idStr}: ${state}`);
+  });
+
+  client.on('message_ciphertext', (msg) => {
+    console.log(`[WhatsAppWeb] ⏳ Mensaje recibido como CIPHERTEXT de ${msg.from} (esperando llave de desencriptación desde el celular principal...)`);
+  });
+
+  client.on('message_ciphertext_failed', (msg) => {
+    console.warn(`[WhatsAppWeb] ⚠️ No se pudo desencriptar mensaje CIPHERTEXT de ${msg.from}. Mantén WhatsApp abierto en el celular principal unos segundos.`);
+  });
 
   // 1. Evento de generación de código QR
   client.on('qr', async (qr) => {
@@ -144,6 +167,15 @@ const initSession = async (branchId) => {
     session.status = 'connected';
     session.qrImage = null;
     session.connectedPhone = phone;
+
+    // Monitorear si la pestaña de Chromium crashea por límite de RAM (OOM) en la Raspberry Pi
+    if (client.pupPage) {
+      client.pupPage.on('error', (err) => {
+        console.error(`[WhatsAppWeb] ❌ Crash en pestaña Chromium de sucursal ${idStr} (posible falta de RAM):`, err.message);
+        sessions.delete(idStr);
+        setTimeout(() => initSession(branchId).catch(() => {}), 5000);
+      });
+    }
 
     try {
       await Branch.findByIdAndUpdate(branchId, {

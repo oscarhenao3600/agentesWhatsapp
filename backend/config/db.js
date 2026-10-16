@@ -1,11 +1,20 @@
+const fs = require('fs');
 const mongoose = require('mongoose');
 
 const connectDB = async (retries = 10, delay = 3000) => {
-  const mongoUri = process.env.MONGODB_URI || (
+  let mongoUri = process.env.MONGODB_URI || (
     process.env.NODE_ENV === 'production' 
       ? 'mongodb://mongodb:27017/agentes_whatsapp' 
       : 'mongodb://localhost:48160/agentes_whatsapp'
   );
+
+  // Si corre dentro de un contenedor Docker y la URI apunta por error a localhost/127.0.0.1,
+  // redirigir automáticamente al contenedor 'mongodb:27017' de la red interna de Docker
+  const isDocker = fs.existsSync('/.dockerenv');
+  if (isDocker && (mongoUri.includes('localhost') || mongoUri.includes('127.0.0.1'))) {
+    console.warn(`⚠️ MONGODB_URI apuntaba a ${mongoUri} dentro de Docker. Redirigiendo automáticamente a mongodb://mongodb:27017/agentes_whatsapp`);
+    mongoUri = 'mongodb://mongodb:27017/agentes_whatsapp';
+  }
 
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {

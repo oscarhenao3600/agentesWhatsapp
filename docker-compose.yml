@@ -64,10 +64,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 25s
+    shm_size: '256mb'
     deploy:
       resources:
         limits:
-          memory: 400M
+          memory: 600M
 
   # ===================================================================
   # Frontend (React + Nginx)

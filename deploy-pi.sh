@@ -17,6 +17,13 @@ if [ ! -f .env ]; then
     exit 1
 fi
 
+# Corregir automáticamente si .env tiene la URI local de Windows (localhost/127.0.0.1:48160)
+if grep -qE "^MONGODB_URI=mongodb://(localhost|127\.0\.0\.1)" .env; then
+    echo "🔧 Ajustando MONGODB_URI en .env para red interna de Docker (mongodb://mongodb:27017/agentes_whatsapp)..."
+    sed -i 's|^MONGODB_URI=mongodb://localhost:[0-9]*/|MONGODB_URI=mongodb://mongodb:27017/|g' .env
+    sed -i 's|^MONGODB_URI=mongodb://127\.0\.0\.1:[0-9]*/|MONGODB_URI=mongodb://mongodb:27017/|g' .env
+fi
+
 # Cargar variables de entorno
 set -a
 source .env 2>/dev/null || true
