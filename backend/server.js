@@ -22,9 +22,9 @@ app.get('/ping', (req, res) => res.send('pong'));
 
 // Middlewares de Seguridad
 app.use(helmet()); // Cabeceras de seguridad
-app.use(mongoSanitize({ replaceWith: '_' })); // Prevenir inyección NoSQL
 app.use(cors()); // Habilitar CORS
 app.use(express.json()); // Parsear JSON
+app.use(mongoSanitize({ replaceWith: '_' })); // Prevenir inyección NoSQL
 
 // Rutas
 app.use('/api/auth', require('./routes/auth'));

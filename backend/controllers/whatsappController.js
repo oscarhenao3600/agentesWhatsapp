@@ -1,6 +1,7 @@
 const { generateDynamicResponse } = require('../services/aiService');
 const { sendTextMessage, markAsRead } = require('../services/metaService');
 const Branch = require('../models/Branch');
+const Business = require('../models/Business');
 const BranchAIConfig = require('../models/BranchAIConfig');
 const Conversation = require('../models/Conversation');
 const Order = require('../models/Order');
@@ -268,7 +269,35 @@ const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '', arg6 = n
     }
 
     // 6. Llamada al motor dinámico de IA (Gemini, OpenAI, o DeepSeek) con directrices de concisión
-    const rawResponse = await generateDynamicResponse(aiConfig, messageText, history, extraContext);
+    let rawResponse;
+    try {
+      rawResponse = await generateDynamicResponse(aiConfig, messageText, history, extraContext);
+    } catch (aiError) {
+      console.error('[AI Fallback] Error en servicio de IA (agotamiento de tokens/cuota o indisponibilidad):', aiError.message);
+
+      const contactPhone = branch?.phone ? ` al ${branch.phone}` : '';
+      const technicalFallbackMsg = `Lo lamento, por el momento no te puedo seguir atendiendo estamos presentando problemas técnicos por favor comunícate con un agente humano${contactPhone}.`;
+
+      // Guardar en la base de datos la interacción con el mensaje de contingencia para que se vea en el panel de chats
+      conversation.messages.push({ role: 'user', content: messageText });
+      conversation.messages.push({ role: 'assistant', content: technicalFallbackMsg });
+      conversation.lastInteraction = Date.now();
+      await conversation.save();
+
+      // Enviar la respuesta por el canal correspondiente (WhatsApp Web o Meta API)
+      if (gateway === 'whatsapp_web' && typeof replyCallback === 'function') {
+        await replyCallback(technicalFallbackMsg);
+        console.log(`[WhatsAppWeb] Contingencia (sin tokens/error IA) enviada a ${cleanFrom}: "${technicalFallbackMsg}"`);
+      } else if (branch.whatsappNumberId && branch.accessToken) {
+        await sendTextMessage(branch.whatsappNumberId, branch.accessToken, cleanFrom, technicalFallbackMsg);
+        if (messageId) {
+          await markAsRead(branch.whatsappNumberId, branch.accessToken, messageId);
+        }
+        console.log(`[MetaAPI] Contingencia (sin tokens/error IA) enviada a ${cleanFrom}: "${technicalFallbackMsg}"`);
+      }
+
+      return technicalFallbackMsg;
+    }
 
     // 7. Extraer JSON de pedido o reservación si existe
     let cleanResponse = rawResponse;
@@ -388,6 +417,27 @@ const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '', arg6 = n
 
   } catch (error) {
     console.error('Error procesando mensaje:', error);
+    const contactPhone = branch?.phone ? ` al ${branch.phone}` : '';
+    const technicalFallbackMsg = `Lo lamento, por el momento no te puedo seguir atendiendo estamos presentando problemas técnicos por favor comunícate con un agente humano${contactPhone}.`;
+
+    if (gateway === 'whatsapp_web' && typeof replyCallback === 'function') {
+      try {
+        await replyCallback(technicalFallbackMsg);
+        console.log(`[WhatsAppWeb] Mensaje de contingencia enviado a ${cleanFrom}: "${technicalFallbackMsg}"`);
+      } catch (replyErr) {
+        console.error('Error enviando mensaje de contingencia:', replyErr.message);
+      }
+    } else if (branch?.whatsappNumberId && branch?.accessToken) {
+      try {
+        await sendTextMessage(branch.whatsappNumberId, branch.accessToken, cleanFrom, technicalFallbackMsg);
+        if (messageId) {
+          await markAsRead(branch.whatsappNumberId, branch.accessToken, messageId);
+        }
+        console.log(`[MetaAPI] Mensaje de contingencia enviado a ${cleanFrom}: "${technicalFallbackMsg}"`);
+      } catch (metaErr) {
+        console.error('Error enviando mensaje de contingencia por Meta:', metaErr.message);
+      }
+    }
   }
 };
 

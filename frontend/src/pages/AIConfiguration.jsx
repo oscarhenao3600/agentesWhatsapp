@@ -40,7 +40,7 @@ const AIConfiguration = () => {
   // Configuración Principal
   const [config, setConfig] = useState({
     aiProvider: 'gemini',
-    aiModel: 'gemini-2.5-flash',
+    aiModel: 'gemini-flash-lite-latest',
     apiKey: '',
     temperature: 0.4,
     businessType: 'other',
@@ -417,9 +417,11 @@ const AIConfiguration = () => {
       case 'gemini':
         return (
           <>
-            <option value="gemini-2.5-flash">Gemini 2.5 Flash (Recomendado - Rápido y Eficiente)</option>
-            <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
-            <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+            <option value="gemini-flash-lite-latest">Gemini Flash Lite (Recomendado - Ultra rápido y alta cuota)</option>
+            <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash Lite</option>
+            <option value="gemini-3.8-flash">Gemini 3.8 Flash</option>
+            <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+            <option value="gemini-flash-latest">Gemini Flash Latest</option>
           </>
         );
       case 'openai':
@@ -486,7 +488,7 @@ const AIConfiguration = () => {
                   value={config.aiProvider}
                   onChange={(e) => {
                     const newProvider = e.target.value;
-                    let defaultModel = 'gemini-1.5-pro';
+                    let defaultModel = 'gemini-flash-lite-latest';
                     if (newProvider === 'openai') defaultModel = 'gpt-4o';
                     if (newProvider === 'deepseek') defaultModel = 'deepseek-chat';
                     setConfig({ ...config, aiProvider: newProvider, aiModel: defaultModel });

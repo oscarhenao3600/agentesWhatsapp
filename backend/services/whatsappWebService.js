@@ -59,6 +59,23 @@ const initSession = async (branchId) => {
     }
   }
 
+  // Limpiar bloqueos residuales de Chromium (SingletonLock, etc.) que impiden iniciar en caso de reinicio forzado del contenedor
+  // Nota: Chromium crea SingletonLock como enlace simbólico (symlink). En Node.js fs.existsSync() devuelve false
+  // para symlinks rotos, por lo que se debe intentar unlink directamente.
+  const sessionDir = path.join(authDataPath, `session-branch_${idStr}`);
+  ['SingletonLock', 'SingletonCookie', 'SingletonSocket'].forEach(lockFile => {
+    const fullPath = path.join(sessionDir, lockFile);
+    try {
+      fs.unlinkSync(fullPath);
+      console.log(`[WhatsAppWeb] Bloqueo residual de Chromium eliminado: ${lockFile}`);
+    } catch (e) {
+      if (e.code !== 'ENOENT') {
+        console.warn(`[WhatsAppWeb] No se pudo eliminar ${lockFile}:`, e.message);
+      }
+    }
+  });
+
+
   console.log(`[WhatsAppWeb] Inicializando sesión para la sucursal: ${idStr}`);
 
   session = {
@@ -69,6 +86,7 @@ const initSession = async (branchId) => {
     lastError: null
   };
   sessions.set(idStr, session);
+
 
   const puppeteerArgs = [
     '--no-sandbox',

@@ -11,16 +11,23 @@ const OpenAI = require("openai");
 const generateDynamicResponse = async (aiConfig, userMessage, history = [], extraContext = {}) => {
   // Configuración de Fallback por defecto
   let provider = aiConfig?.aiProvider || 'gemini';
-  let modelName = aiConfig?.aiModel || 'gemini-2.5-flash';
+  let modelName = aiConfig?.aiModel || 'gemini-flash-lite-latest';
   let apiKey = aiConfig?.apiKey;
   let temperature = aiConfig?.temperature !== undefined ? aiConfig.temperature : 0.7;
+
+  // Si el modelo guardado es obsoleto (ej. 1.5 o 2.0 que ya no están disponibles en la API de Google), migrarlo a gemini-flash-lite-latest
+  if (modelName && (modelName.includes('gemini-1.5') || modelName.includes('gemini-2.0'))) {
+    modelName = 'gemini-flash-lite-latest';
+  }
 
   // Fallback si la sucursal no tiene API Key configurada
   if (!apiKey) {
     if (process.env.GEMINI_API_KEY) {
       console.log('No branch API Key found, using global Gemini fallback.');
       provider = 'gemini';
-      modelName = 'gemini-2.5-flash';
+      if (!modelName || modelName.includes('gemini-1.5') || modelName.includes('gemini-2.0')) {
+        modelName = 'gemini-flash-lite-latest';
+      }
       apiKey = process.env.GEMINI_API_KEY;
     } else {
       throw new Error("No hay API Key configurada en la sucursal ni en el entorno (.env).");
@@ -114,56 +121,77 @@ const generateDynamicResponse = async (aiConfig, userMessage, history = [], extr
     }
   } catch (error) {
     console.error(`Error en AI Service (${provider}):`, error.message);
-    throw new Error(`No se pudo generar una respuesta usando ${provider}`);
+    throw new Error(`No se pudo generar una respuesta usando ${provider}: ${error.message}`);
   }
 };
 
 const callGemini = async (apiKey, modelName, systemInstruction, userMessage, history, temperature, maxTokens = 250) => {
   const genAI = new GoogleGenerativeAI(apiKey);
 
-  const executeChat = async (targetModel) => {
-    const model = genAI.getGenerativeModel({ model: targetModel });
+  // Lista de modelos a intentar en cascada ante errores de cuota (429), demanda (503) o modelos no encontrados (404)
+  const candidateModels = [
+    modelName,
+    'gemini-flash-lite-latest',
+    'gemini-3.5-flash-lite',
+    'gemini-3.8-flash',
+    'gemini-2.5-flash'
+  ];
 
-    const chat = model.startChat({
-      history: [
-        {
-          role: "user",
-          parts: [{ text: systemInstruction }],
+  // Filtrar modelos no válidos, obsoletos y eliminar duplicados
+  const uniqueModels = [...new Set(candidateModels.filter(m => m && !m.includes('gemini-1.5') && !m.includes('gemini-2.0')))];
+
+  let lastError = null;
+
+  for (const targetModel of uniqueModels) {
+    const executeChat = async () => {
+      const model = genAI.getGenerativeModel({ model: targetModel });
+
+      const chat = model.startChat({
+        history: [
+          {
+            role: "user",
+            parts: [{ text: systemInstruction }],
+          },
+          {
+            role: "model",
+            parts: [{ text: "Entendido. Atenderé al cliente de forma breve, concisa y directa según tus instrucciones." }],
+          },
+          ...history.map(msg => ({
+            role: msg.role === 'assistant' ? 'model' : 'user',
+            parts: [{ text: msg.content }]
+          }))
+        ],
+        generationConfig: {
+          temperature: temperature,
+          maxOutputTokens: maxTokens,
         },
-        {
-          role: "model",
-          parts: [{ text: "Entendido. Atenderé al cliente de forma breve, concisa y directa según tus instrucciones." }],
-        },
-        ...history.map(msg => ({
-          role: msg.role === 'assistant' ? 'model' : 'user',
-          parts: [{ text: msg.content }]
-        }))
-      ],
-      generationConfig: {
-        temperature: temperature,
-        maxOutputTokens: maxTokens,
-      },
-    });
+      });
 
-    const result = await chat.sendMessage(userMessage);
-    const response = await result.response;
-    return response.text();
-  };
+      const result = await chat.sendMessage(userMessage);
+      const response = await result.response;
+      return response.text();
+    };
 
-  // Reintento con backoff en caso de 503 (alta demanda) o rate limit
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      return await executeChat(modelName);
-    } catch (err) {
-      const isRetryable = err.message.includes('503') || err.message.includes('demand') || err.message.includes('RESOURCE_EXHAUSTED');
-      if (isRetryable && attempt < 3) {
-        console.warn(`[Gemini Retry] Intento ${attempt} falló (${err.message.substring(0, 60)}). Reintentando en ${attempt * 1200}ms...`);
-        await new Promise(r => setTimeout(r, attempt * 1200));
-      } else {
-        throw err;
+    // Reintentar hasta 2 veces por modelo en caso de saturación temporal (503)
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const text = await executeChat();
+        return text;
+      } catch (err) {
+        lastError = err;
+        const isDemandOrQuota = err.message.includes('503') || err.message.includes('429') || err.message.includes('RESOURCE_EXHAUSTED') || err.message.includes('quota') || err.message.includes('404');
+        if (err.message.includes('503') && attempt < 2) {
+          console.warn(`[Gemini Retry] Modelo ${targetModel} saturado (intento ${attempt}). Reintentando en 1000ms...`);
+          await new Promise(r => setTimeout(r, 1000));
+        } else {
+          console.warn(`[Gemini Fallback] Error con modelo '${targetModel}': ${err.message.substring(0, 90)}. ${isDemandOrQuota ? 'Intentando siguiente modelo...' : ''}`);
+          break; // Pasar al siguiente modelo de la lista
+        }
       }
     }
   }
+
+  throw lastError || new Error("No se pudo generar una respuesta con ninguno de los modelos de Gemini disponibles.");
 };
 
 const callOpenAI = async (apiKey, modelName, systemInstruction, userMessage, history, temperature, maxTokens = 250) => {

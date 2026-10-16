@@ -14,18 +14,22 @@ const protect = async (req, res, next) => {
 
       // Obtener usuario del token
       req.user = await User.findById(decoded.id).select('-password');
+      if (!req.user) {
+        return res.status(401).json({ message: 'No autorizado, usuario no existe' });
+      }
 
       next();
     } catch (error) {
       console.error(error);
-      res.status(401).json({ message: 'No autorizado, token fallido' });
+      return res.status(401).json({ message: 'No autorizado, token fallido' });
     }
   }
 
   if (!token) {
-    res.status(401).json({ message: 'No autorizado, no hay token' });
+    return res.status(401).json({ message: 'No autorizado, no hay token' });
   }
 };
+
 
 // Middleware para autorizar roles específicos
 const authorize = (...roles) => {
