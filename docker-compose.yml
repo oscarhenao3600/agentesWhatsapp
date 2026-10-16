@@ -26,7 +26,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 350M
+          memory: 512M
 
   # ===================================================================
   # Backend (Node.js + Puppeteer / WhatsApp Web / Gemini AI)
@@ -64,11 +64,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 25s
-    shm_size: '256mb'
+    shm_size: '512mb'
     deploy:
       resources:
         limits:
-          memory: 600M
+          memory: 1500M
 
   # ===================================================================
   # Frontend (React + Nginx)
@@ -88,7 +88,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 120M
+          memory: 256M
 
 volumes:
   agentes_whatsapp_mongodb_data:

@@ -98,8 +98,7 @@ const initSession = async (branchId) => {
     '--disable-extensions',
     '--disable-background-networking',
     '--disable-sync',
-    '--mute-audio',
-    '--js-flags=--max-old-space-size=256'
+    '--mute-audio'
   ];
 
   const puppeteerConfig = {
@@ -168,13 +167,54 @@ const initSession = async (branchId) => {
     session.qrImage = null;
     session.connectedPhone = phone;
 
-    // Monitorear si la pestaña de Chromium crashea por límite de RAM (OOM) en la Raspberry Pi
+    // Monitorear errores de Chromium y asegurar captura de mensajes nuevos aunque WhatsApp Web
+    // siga sincronizando historial en segundo plano (donde msg.isNewMsg viene en false en Raspberry Pi)
     if (client.pupPage) {
       client.pupPage.on('error', (err) => {
-        console.error(`[WhatsAppWeb] ❌ Crash en pestaña Chromium de sucursal ${idStr} (posible falta de RAM):`, err.message);
+        console.error(`[WhatsAppWeb] ❌ Crash en pestaña Chromium de sucursal ${idStr}:`, err.message);
         sessions.delete(idStr);
         setTimeout(() => initSession(branchId).catch(() => {}), 5000);
       });
+
+      client.pupPage.on('pageerror', (err) => {
+        console.warn(`[WhatsAppWeb] ⚠️ Error JS en página de WhatsApp (${idStr}):`, err.message);
+      });
+
+      try {
+        await client.pupPage.evaluate(() => {
+          if (window.__agentesFallbackMsgHooked) return;
+          window.__agentesFallbackMsgHooked = true;
+          const { Msg } = window.require('WAWebCollections');
+          const bootTimeSec = Math.floor(Date.now() / 1000) - 10;
+
+          Msg.on('add', (msg) => {
+            try {
+              // Si msg.isNewMsg es true, whatsapp-web.js ya lo procesa nativamente
+              if (msg.isNewMsg) return;
+
+              // Si msg.isNewMsg es false pero el timestamp del mensaje es posterior al arranque,
+              // es un mensaje entrante real durante la sincronización lenta en Raspberry Pi
+              const msgTime = msg.t || 0;
+              if (msgTime >= bootTimeSec) {
+                if (msg.type !== 'ciphertext') {
+                  window.onAddMessageEvent(window.WWebJS.getMessageModel(msg));
+                } else {
+                  msg.once('change:type', (_msg) => {
+                    if (_msg.type !== 'revoked' && _msg.type !== 'ciphertext') {
+                      window.onAddMessageEvent(window.WWebJS.getMessageModel(_msg));
+                    }
+                  });
+                }
+              }
+            } catch (e) {
+              // Ignorar errores de serialización individuales
+            }
+          });
+        });
+        console.log(`[WhatsAppWeb] ✅ Listener de mensajes en tiempo real reforzado activo para sucursal ${idStr}.`);
+      } catch (hookErr) {
+        console.warn(`[WhatsAppWeb] No se pudo inyectar listener de refuerzo:`, hookErr.message);
+      }
     }
 
     try {
