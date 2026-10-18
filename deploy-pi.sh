@@ -107,12 +107,23 @@ if [ -d .git ] && command -v git &> /dev/null; then
     git pull origin master 2>/dev/null || git pull origin main 2>/dev/null || true
 fi
 
-# 7. Levantar contenedores asegurando compilación limpia del frontend
+# 7. Liberar espacio en la microSD antes de compilar (evita "no space left on device")
+echo "🧹 Liberando caché antiguo de Docker y logs del sistema para proteger el espacio en disco..."
+docker builder prune -af >/dev/null 2>&1 || true
+docker image prune -f >/dev/null 2>&1 || true
+sudo journalctl --vacuum-size=50M >/dev/null 2>&1 || true
+echo "📊 Espacio disponible antes de compilar:"
+df -h / | awk 'NR==1 || NR==2 {print "   " $0}'
+
+# 8. Levantar contenedores sin duplicar compilaciones
 echo "📦 Compilando y levantando contenedores con $COMPOSE_CMD..."
-$COMPOSE_CMD build --no-cache frontend
 $COMPOSE_CMD up -d --build $SERVICES_TO_UP
 
-# 8. Estado de los contenedores
+# Limpiar imágenes huérfanas generadas durante el reemplazo
+docker image prune -f >/dev/null 2>&1 || true
+docker builder prune -af >/dev/null 2>&1 || true
+
+# 9. Estado de los contenedores
 echo ""
 echo "✅ Despliegue finalizado con éxito."
 $COMPOSE_CMD ps

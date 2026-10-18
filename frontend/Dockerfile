@@ -7,7 +7,9 @@ COPY package*.json ./
 
 # Limitar memoria de Node a 512MB para evitar OOM killer en Raspberry Pi 3B+ (1GB RAM)
 ENV NODE_OPTIONS="--max-old-space-size=512"
-RUN npm install --no-audit --no-fund
+RUN npm install --no-audit --no-fund && \
+    npm cache clean --force && \
+    rm -rf /root/.npm /tmp/*
 
 COPY . .
 RUN npm run build

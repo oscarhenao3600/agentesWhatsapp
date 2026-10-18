@@ -19,8 +19,10 @@ ENV TZ=America/Bogota \
 # Copiar archivos de dependencias
 COPY package*.json ./
 
-# Instalar dependencias de producción limpiamente
-RUN npm install --omit=dev --no-audit --no-fund
+# Instalar dependencias de producción y limpiar caché de npm en la misma capa (ahorra ~300MB en disco)
+RUN npm install --omit=dev --no-audit --no-fund && \
+    npm cache clean --force && \
+    rm -rf /root/.npm /tmp/*
 
 # Copiar el resto del código
 COPY . .
