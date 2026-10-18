@@ -1,30 +1,60 @@
-require('dotenv').config();
+const path = require('path');
 const mongoose = require('mongoose');
 const User = require('./models/User');
 
-const seedAdmin = async () => {
-  try {
-    await mongoose.connect(process.env.MONGODB_URI);
-    
-    // Verificar si ya existe
-    const adminExists = await User.findOne({ username: 'oscarhenao' });
-    
-    if (adminExists) {
-      console.log('El usuario administrador oscarhenao ya existe.');
-    } else {
-      await User.create({
-        username: 'oscarhenao',
-        password: 'oscar3600',
-        role: 'admin'
-      });
-      console.log('Usuario administrador oscarhenao creado exitosamente.');
+const ensureAdminUser = async ({ resetPassword = false } = {}) => {
+  const adminUsername = process.env.ADMIN_USERNAME || 'oscarhenao';
+  const adminPassword = process.env.ADMIN_PASSWORD || 'oscar3600';
+
+  const existingAdmin = await User.findOne({ username: adminUsername });
+
+  if (existingAdmin) {
+    let updated = false;
+    if (existingAdmin.role !== 'admin') {
+      existingAdmin.role = 'admin';
+      updated = true;
     }
-    
-    process.exit();
-  } catch (error) {
-    console.error('Error al crear el admin:', error);
-    process.exit(1);
+    if (!existingAdmin.active) {
+      existingAdmin.active = true;
+      updated = true;
+    }
+    if (resetPassword) {
+      existingAdmin.password = adminPassword;
+      updated = true;
+    }
+    if (updated) {
+      await existingAdmin.save();
+      console.log(`✅ Usuario administrador '${adminUsername}' actualizado (rol: admin).`);
+    } else {
+      console.log(`ℹ️ El usuario administrador '${adminUsername}' ya existe y está activo.`);
+    }
+    return existingAdmin;
   }
+
+  const created = await User.create({
+    username: adminUsername,
+    password: adminPassword,
+    role: 'admin',
+    active: true
+  });
+  console.log(`✅ Usuario administrador '${adminUsername}' creado exitosamente.`);
+  return created;
 };
 
-seedAdmin();
+if (require.main === module) {
+  require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
+  require('dotenv').config({ override: true });
+  const connectDB = require('./config/db');
+
+  connectDB()
+    .then(async () => {
+      await ensureAdminUser({ resetPassword: true });
+      process.exit(0);
+    })
+    .catch((error) => {
+      console.error('❌ Error al crear/verificar el admin:', error);
+      process.exit(1);
+    });
+}
+
+module.exports = { ensureAdminUser };

@@ -4,21 +4,17 @@ FROM node:20-alpine
 # Establecer el directorio de trabajo
 WORKDIR /app
 
-# Instalar Chromium, fuentes necesarias para Puppeteer (whatsapp-web.js) y tzdata para zona horaria
+# Instalar solo certificados y zona horaria (sin Chromium para proteger RAM y microSD en Raspberry Pi)
 RUN apk add --no-cache \
-    chromium \
-    nss \
-    freetype \
-    harfbuzz \
     ca-certificates \
-    ttf-freefont \
     tzdata
 
-# Configurar zona horaria de Colombia, motor Baileys por defecto para Raspberry Pi y ruta de Chromium opcional
+# Configurar zona horaria de Colombia, motor Baileys exclusivo y límite de heap V8 para Raspberry Pi 1GB
 ENV TZ=America/Bogota \
     DEFAULT_GATEWAY_TYPE=baileys \
+    ALLOW_CHROMIUM=false \
     PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
-    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+    NODE_OPTIONS="--max-old-space-size=256"
 
 # Copiar archivos de dependencias
 COPY package*.json ./

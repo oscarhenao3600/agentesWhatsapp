@@ -14,6 +14,9 @@ const connectDB = async (retries = 10, delay = 3000) => {
   if (isDocker && (mongoUri.includes('localhost') || mongoUri.includes('127.0.0.1'))) {
     console.warn(`⚠️ MONGODB_URI apuntaba a ${mongoUri} dentro de Docker. Redirigiendo automáticamente a mongodb://mongodb:27017/agentes_whatsapp`);
     mongoUri = 'mongodb://mongodb:27017/agentes_whatsapp';
+  } else if (!isDocker && mongoUri.includes('://mongodb:')) {
+    console.warn(`⚠️ Ejecución fuera de Docker detectada con host 'mongodb'. Redirigiendo a mongodb://localhost:48160/agentes_whatsapp`);
+    mongoUri = 'mongodb://localhost:48160/agentes_whatsapp';
   }
 
   for (let attempt = 1; attempt <= retries; attempt++) {
@@ -21,14 +24,23 @@ const connectDB = async (retries = 10, delay = 3000) => {
       const conn = await mongoose.connect(mongoUri, {
         serverSelectionTimeoutMS: 5000,
       });
-      console.log(`✅ MongoDB conectado exitosamente: ${conn.connection.host}`);
+      console.log(`✅ MongoDB conectado exitosamente: ${conn.connection.host}:${conn.connection.port}`);
       return conn;
     } catch (error) {
-      console.warn(`⚠️ [Intento ${attempt}/${retries}] Esperando conexión a MongoDB (${error.message}). Reintentando en ${delay / 1000}s...`);
-
-      if (mongoUri.includes('://mongodb:') && (error.message.includes('ENOTFOUND') || error.code === 'ENOTFOUND')) {
-        console.warn(`💡 TIP: Si estás ejecutando 'npm run dev' en Windows fuera de Docker, cambia MONGODB_URI en tu archivo .env a: mongodb://localhost:48160/agentes_whatsapp`);
+      if (!isDocker && mongoUri.includes(':48160')) {
+        try {
+          const fallbackUri = 'mongodb://127.0.0.1:27017/agentes_whatsapp';
+          const conn = await mongoose.connect(fallbackUri, {
+            serverSelectionTimeoutMS: 3000,
+          });
+          console.log(`✅ MongoDB conectado exitosamente (instancia local 27017): ${conn.connection.host}:${conn.connection.port}`);
+          return conn;
+        } catch (_) {
+          // Continuar con el flujo normal de reintentos
+        }
       }
+
+      console.warn(`⚠️ [Intento ${attempt}/${retries}] Esperando conexión a MongoDB (${error.message}). Reintentando en ${delay / 1000}s...`);
 
       if (attempt === retries) {
         console.error('❌ Error fatal: No se pudo conectar a MongoDB después de múltiples intentos.');

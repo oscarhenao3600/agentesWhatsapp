@@ -158,16 +158,13 @@ const AIConfiguration = () => {
   // --- MÓDULO: VINCULACIÓN WHATSAPP GATEWAY (BAILEYS POR DEFECTO O WHATSAPP-WEB.JS) ---
   
   const handleConnectWhatsApp = async () => {
-    setQrState({ url: null, secondsLeft: 90, status: 'loading' });
+    setQrState({ url: null, secondsLeft: 180, status: 'loading' });
     
     try {
       const authConfig = { headers: { Authorization: `Bearer ${user.token}` } };
-      const selectedEngine = ['baileys', 'whatsapp_web'].includes(config.gatewayType)
-        ? config.gatewayType
-        : 'baileys';
       
-      // Llamar al backend para inicializar el motor elegido (Baileys sin Chromium o whatsapp-web.js)
-      await axios.post(`/api/gateway/${branchId}/qr`, { gatewayType: selectedEngine }, authConfig);
+      // Llamar al backend para inicializar Baileys (WebSockets ligeros, sin Chromium)
+      await axios.post(`/api/gateway/${branchId}/qr`, { gatewayType: 'baileys' }, authConfig);
 
       if (qrTimerRef.current) clearInterval(qrTimerRef.current);
       
@@ -180,7 +177,7 @@ const AIConfiguration = () => {
           if (data.status === 'qr_ready' && data.qrImage) {
             setQrState(prev => ({
               url: data.qrImage,
-              secondsLeft: prev.secondsLeft > 0 ? prev.secondsLeft - 2 : 0,
+              secondsLeft: prev.secondsLeft > 2 ? prev.secondsLeft - 2 : 1,
               status: 'active'
             }));
           } else if (data.status === 'connected') {
@@ -190,7 +187,7 @@ const AIConfiguration = () => {
             setWhatsappNumber(data.connectedPhone || '');
             setQrState({ url: null, secondsLeft: 0, status: 'idle' });
             alert('¡WhatsApp vinculado exitosamente! El bot está listo para responder.');
-          } else if (data.status === 'error') {
+          } else if (data.status === 'error' || data.status === 'disconnected') {
             clearInterval(qrTimerRef.current);
             qrTimerRef.current = null;
             setQrState({ url: null, secondsLeft: 0, status: 'expired' });
@@ -578,20 +575,11 @@ const AIConfiguration = () => {
                   <button
                     type="button"
                     onClick={() => setConfig({ ...config, gatewayType: 'baileys' })}
-                    className={config.gatewayType === 'baileys' ? 'btn-primary' : 'btn-secondary'}
+                    className={config.gatewayType === 'baileys' || config.gatewayType === 'whatsapp_web' ? 'btn-primary' : 'btn-secondary'}
                     style={{ padding: '8px 10px', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-                    title="Conecta por WebSockets directos sin abrir Chromium (~25MB RAM). Ideal para Raspberry Pi."
+                    title="Conecta por WebSockets directos sin abrir Chromium (~30MB RAM). Ideal para Raspberry Pi."
                   >
                     <Zap size={15} /> Baileys QR (Ligero / Pi)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setConfig({ ...config, gatewayType: 'whatsapp_web' })}
-                    className={config.gatewayType === 'whatsapp_web' ? 'btn-primary' : 'btn-secondary'}
-                    style={{ padding: '8px 10px', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-                    title="Conecta usando whatsapp-web.js sobre navegador Chromium Headless."
-                  >
-                    <QrCode size={15} /> WhatsApp Web (Chromium)
                   </button>
                   <button
                     type="button"

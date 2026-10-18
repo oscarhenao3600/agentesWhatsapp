@@ -14,12 +14,34 @@ const generateToken = (id) => {
 // @route   POST /api/auth/login
 // @access  Public
 router.post('/login', async (req, res) => {
-  const { username, password } = req.body;
+  const rawUsername = req.body.username || '';
+  const username = rawUsername.trim();
+  const { password } = req.body;
+  const adminUsername = (process.env.ADMIN_USERNAME || 'oscarhenao').trim();
+  const adminPassword = process.env.ADMIN_PASSWORD || 'oscar3600';
 
   try {
-    const user = await User.findOne({ username });
+    let user = await User.findOne({
+      username: { $regex: new RegExp(`^${username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
+    });
+
+    // Si es el usuario administrador por defecto y aún no existe en la BD, crearlo si la contraseña coincide
+    if (!user && username.toLowerCase() === adminUsername.toLowerCase() && password === adminPassword) {
+      user = await User.create({
+        username: adminUsername,
+        password: adminPassword,
+        role: 'admin',
+        active: true
+      });
+    }
 
     if (user && (await user.matchPassword(password))) {
+      // Garantizar que la cuenta principal de administrador tenga siempre rol 'admin'
+      if (user.username.toLowerCase() === adminUsername.toLowerCase() && user.role !== 'admin') {
+        user.role = 'admin';
+        await user.save();
+      }
+
       res.json({
         _id: user._id,
         username: user.username,
@@ -38,19 +60,28 @@ router.post('/login', async (req, res) => {
 // @route   POST /api/auth/register
 // @access  Public (Para este sistema el registro inicial de oscar ya se hizo por seed)
 router.post('/register', async (req, res) => {
-  const { username, password, role } = req.body;
+  const rawUsername = req.body.username || '';
+  const username = rawUsername.trim();
+  const { password, role } = req.body;
+  const adminUsername = (process.env.ADMIN_USERNAME || 'oscarhenao').trim();
 
   try {
-    const userExists = await User.findOne({ username });
+    const userExists = await User.findOne({
+      username: { $regex: new RegExp(`^${username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
+    });
 
     if (userExists) {
       return res.status(400).json({ message: 'El usuario ya existe' });
     }
 
+    const assignedRole = username.toLowerCase() === adminUsername.toLowerCase()
+      ? 'admin'
+      : (role || 'client');
+
     const user = await User.create({
       username,
       password,
-      role: role || 'client'
+      role: assignedRole
     });
 
     if (user) {

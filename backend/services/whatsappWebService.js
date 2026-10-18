@@ -45,6 +45,11 @@ const hasActiveSession = (branchId) => {
  * @returns {Promise<Object>} Estado de la sesión
  */
 const initSession = async (branchId) => {
+  if (process.env.ALLOW_CHROMIUM !== 'true') {
+    console.warn(`[WhatsAppWeb] Chromium bloqueado para proteger memoria. Redirigiendo sucursal ${branchId} a Baileys.`);
+    const baileysService = require('./baileysService');
+    return baileysService.initSession(branchId);
+  }
   const { Client, LocalAuth } = require('whatsapp-web.js');
   const idStr = branchId.toString();
   let session = sessions.get(idStr);

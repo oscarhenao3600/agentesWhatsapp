@@ -29,17 +29,23 @@ set -a
 source .env 2>/dev/null || true
 set +a
 
-# 2. Verificar memoria Swap (Crucial para Raspberry Pi 3 con 1GB RAM compartida)
+# 2. Proteger la tarjeta microSD ajustando vm.swappiness=10 (evita Swap Thrashing en 1GB RAM)
+if command -v sysctl &> /dev/null; then
+    CURRENT_SWAPPINESS=$(cat /proc/sys/vm/swappiness 2>/dev/null || echo "60")
+    if [ "$CURRENT_SWAPPINESS" -gt 10 ]; then
+        echo "🛡️ Ajustando vm.swappiness=10 para proteger la tarjeta microSD del desgaste por Swap..."
+        sudo sysctl -w vm.swappiness=10 >/dev/null 2>&1 || true
+        if [ -f /etc/sysctl.conf ] && ! grep -q "^vm.swappiness" /etc/sysctl.conf; then
+            echo "vm.swappiness=10" | sudo tee -a /etc/sysctl.conf >/dev/null 2>&1 || true
+        fi
+    fi
+fi
+
+# Verificar memoria Swap
 SWAP_TOTAL=$(free -m | awk '/Swap:/ {print $2}')
 if [ -n "$SWAP_TOTAL" ] && [ "$SWAP_TOTAL" -lt 1024 ]; then
     echo "⚠️ ADVERTENCIA: La memoria Swap actual es de solo ${SWAP_TOTAL}MB."
-    echo "   Para ejecutar Agentes WhatsApp junto a Formatos Cuentas en la misma Raspberry Pi 3B+ (1GB RAM),"
-    echo "   se recomienda tener al menos 1024MB o 2048MB de Swap para evitar el OOM killer."
-    echo "   Para aumentarlo en Raspberry Pi OS:"
-    echo "     sudo dphys-swapfile swapoff"
-    echo "     sudo nano /etc/dphys-swapfile  # Cambiar CONF_SWAPSIZE=2048"
-    echo "     sudo dphys-swapfile setup"
-    echo "     sudo dphys-swapfile swapon"
+    echo "   Se recomienda tener 1024MB de Swap con vm.swappiness=10 como respaldo."
     echo "--------------------------------------------------------"
 fi
 

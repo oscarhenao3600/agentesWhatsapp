@@ -30,9 +30,11 @@ router.post('/:branchId/qr', protect, async (req, res) => {
     const branch = await Branch.findById(branchId);
     const aiConfig = await BranchAIConfig.findOne({ branch: branchId });
 
-    // Determinar motor seleccionado (prioriza body -> aiConfig -> branch -> default 'baileys')
-    const defaultEngine = process.env.DEFAULT_GATEWAY_TYPE || 'baileys';
-    let selectedGateway = req.body?.gatewayType || aiConfig?.gatewayType || branch?.gatewayType || defaultEngine;
+    // Forzar motor Baileys (WebSockets puros sin Chromium) salvo que se habilite ALLOW_CHROMIUM explícitamente
+    const allowChromium = process.env.ALLOW_CHROMIUM === 'true';
+    let selectedGateway = allowChromium
+      ? (req.body?.gatewayType || aiConfig?.gatewayType || branch?.gatewayType || 'baileys')
+      : 'baileys';
     if (!['baileys', 'whatsapp_web'].includes(selectedGateway)) {
       selectedGateway = 'baileys';
     }
@@ -45,14 +47,13 @@ router.post('/:branchId/qr', protect, async (req, res) => {
     }
 
     let sessionState;
-    if (selectedGateway === 'whatsapp_web') {
-      // Si había una sesión activa en Baileys, cerrarla antes de iniciar Chromium
+    if (selectedGateway === 'whatsapp_web' && allowChromium) {
       if (baileysService.hasActiveSession(branchId)) {
         await baileysService.disconnectSession(branchId, false);
       }
       sessionState = await whatsappWebService.initSession(branchId);
     } else {
-      // Por defecto: Baileys (WebSockets ligeros, sin Chromium)
+      // Por defecto: Baileys (WebSockets ligeros, ~30MB RAM, sin Chromium)
       if (whatsappWebService.hasActiveSession(branchId)) {
         await whatsappWebService.disconnectSession(branchId, false);
       }

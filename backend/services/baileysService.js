@@ -86,12 +86,16 @@ const hasActiveSession = (branchId) => {
   return Boolean(session && session.status !== 'disconnected');
 };
 
+const MAX_QR_ATTEMPTS = 3; // 1 QR inicial + 2 adicionales (1 minuto cada uno)
+const QR_TIMEOUT_MS = 60000; // 1 minuto por código QR
+
 /**
  * Inicializa la sesión de WhatsApp mediante Baileys (WebSockets ligeros, sin Chromium)
  * @param {string} branchId
+ * @param {number} initialQrCount
  * @returns {Promise<Object>} Estado inicial de la sesión
  */
-const initSession = async (branchId) => {
+const initSession = async (branchId, initialQrCount = 0) => {
   const idStr = branchId.toString();
   let session = sessions.get(idStr);
 
@@ -99,7 +103,7 @@ const initSession = async (branchId) => {
     return { status: 'connected', qrImage: null, connectedPhone: session.connectedPhone, gatewayType: 'baileys' };
   }
 
-  if (session && session.status === 'qr_ready' && session.qrImage) {
+  if (session && session.status === 'qr_ready' && session.qrImage && initialQrCount === 0) {
     return { status: 'qr_ready', qrImage: session.qrImage, connectedPhone: '', gatewayType: 'baileys' };
   }
 
@@ -107,6 +111,7 @@ const initSession = async (branchId) => {
   if (session) {
     session.manualDisconnect = true;
     if (session.reconnectTimer) clearTimeout(session.reconnectTimer);
+    if (session.qrExpireTimer) clearTimeout(session.qrExpireTimer);
     if (session.sock) {
       try {
         session.sock.ev.removeAllListeners();
@@ -124,9 +129,34 @@ const initSession = async (branchId) => {
     connectedPhone: '',
     lastError: null,
     manualDisconnect: false,
-    reconnectTimer: null
+    reconnectTimer: null,
+    qrExpireTimer: null,
+    qrCount: initialQrCount
   };
   sessions.set(idStr, session);
+
+  const closeExpiredQrSession = () => {
+    console.warn(`[Baileys] ⏱️ Límite de ${MAX_QR_ATTEMPTS} códigos QR alcanzado sin escaneo en sucursal ${idStr}. Cerrando socket para liberar RAM.`);
+    session.manualDisconnect = true;
+    if (session.reconnectTimer) clearTimeout(session.reconnectTimer);
+    if (session.qrExpireTimer) clearTimeout(session.qrExpireTimer);
+    if (session.sock) {
+      try {
+        session.sock.ev.removeAllListeners();
+        session.sock.end(undefined);
+      } catch (e) {}
+      session.sock = null;
+    }
+    session.status = 'error';
+    session.qrImage = null;
+    session.lastError = 'Tiempo de escaneo QR agotado (3 intentos).';
+    setTimeout(() => {
+      const current = sessions.get(idStr);
+      if (current === session && current.status === 'error') {
+        sessions.delete(idStr);
+      }
+    }, 15000);
+  };
 
   const sessionDir = path.join(baileysAuthRoot, `session-branch_${idStr}`);
   if (!fs.existsSync(sessionDir)) {
@@ -172,6 +202,7 @@ const initSession = async (branchId) => {
       syncFullHistory: false, // Crítico para ahorrar RAM y CPU en Raspberry Pi
       markOnlineOnConnect: false,
       generateHighQualityLinkPreview: false,
+      qrTimeout: QR_TIMEOUT_MS, // 1 minuto por cada código QR
       connectTimeoutMs: 60000,
       defaultQueryTimeoutMs: 60000,
       keepAliveIntervalMs: 25000,
@@ -188,11 +219,28 @@ const initSession = async (branchId) => {
       const { connection, lastDisconnect, qr } = update;
 
       if (qr) {
-        console.log(`[Baileys] Código QR generado para la sucursal: ${idStr}`);
+        if (session.qrExpireTimer) clearTimeout(session.qrExpireTimer);
+
+        if (session.qrCount >= MAX_QR_ATTEMPTS) {
+          closeExpiredQrSession();
+          return;
+        }
+
+        session.qrCount += 1;
+        console.log(`[Baileys] Código QR generado (${session.qrCount}/${MAX_QR_ATTEMPTS}) para la sucursal: ${idStr}`);
         try {
           const qrDataUrl = await qrcode.toDataURL(qr, { margin: 2, scale: 6 });
           session.status = 'qr_ready';
           session.qrImage = qrDataUrl;
+
+          // Si es el 3er código QR (1 inicial + 2 adicionales), programar cierre automático tras 1 minuto
+          if (session.qrCount >= MAX_QR_ATTEMPTS) {
+            session.qrExpireTimer = setTimeout(() => {
+              if (session.status !== 'connected') {
+                closeExpiredQrSession();
+              }
+            }, QR_TIMEOUT_MS);
+          }
         } catch (qrErr) {
           console.error('[Baileys] Error convirtiendo QR a DataURL:', qrErr.message);
           session.status = 'error';
@@ -201,6 +249,12 @@ const initSession = async (branchId) => {
       }
 
       if (connection === 'open') {
+        if (session.qrExpireTimer) {
+          clearTimeout(session.qrExpireTimer);
+          session.qrExpireTimer = null;
+        }
+        session.qrCount = 0;
+
         const phone = cleanJidUser(sock.user?.id);
         console.log(`[Baileys] ✅ Cliente listo y conectado para sucursal ${idStr}. Teléfono: ${phone}`);
         session.status = 'connected';
@@ -224,9 +278,15 @@ const initSession = async (branchId) => {
       }
 
       if (connection === 'close') {
+        if (session.qrExpireTimer) {
+          clearTimeout(session.qrExpireTimer);
+          session.qrExpireTimer = null;
+        }
+
         const statusCode = lastDisconnect?.error?.output?.statusCode;
         const reasonMsg = lastDisconnect?.error?.message || `código ${statusCode}`;
         const isLoggedOut = statusCode === DisconnectReason?.loggedOut || statusCode === 401 || statusCode === 403;
+        const isQrTimeout = statusCode === DisconnectReason?.timedOut || statusCode === 408 || reasonMsg.toLowerCase().includes('qr refs attempts ended');
 
         console.log(`[Baileys] Conexión cerrada en sucursal ${idStr} (${reasonMsg}). LoggedOut=${isLoggedOut}, Manual=${session.manualDisconnect}`);
 
@@ -255,13 +315,28 @@ const initSession = async (branchId) => {
           } catch (dbErr) {
             console.error('[Baileys] Error actualizando desconexión en BD:', dbErr.message);
           }
+        } else if (session.qrCount > 0 && session.status !== 'connected' && statusCode !== DisconnectReason?.restartRequired && statusCode !== 515) {
+          // Estaba esperando escaneo de QR y aún no se ha vinculado
+          if (session.qrCount >= MAX_QR_ATTEMPTS || isQrTimeout) {
+            closeExpiredQrSession();
+          } else {
+            const carriedQrCount = session.qrCount;
+            session.reconnectTimer = setTimeout(() => {
+              if (!session.manualDisconnect) {
+                sessions.delete(idStr);
+                initSession(branchId, carriedQrCount).catch(err =>
+                  console.error(`[Baileys] Error reintentando QR de ${idStr}:`, err.message)
+                );
+              }
+            }, 2000);
+          }
         } else {
-          // Reconexión automática (ej. código 515 tras escanear QR o microcorte de red)
+          // Reconexión automática de sesión ya autenticada (ej. código 515 tras escanear QR o microcorte de red)
           session.status = 'initializing';
           session.reconnectTimer = setTimeout(() => {
             if (!session.manualDisconnect) {
               sessions.delete(idStr);
-              initSession(branchId).catch(err =>
+              initSession(branchId, 0).catch(err =>
                 console.error(`[Baileys] Error en reconexión automática de ${idStr}:`, err.message)
               );
             }
@@ -449,6 +524,7 @@ const disconnectSession = async (branchId, updateDb = true) => {
   if (session) {
     session.manualDisconnect = true;
     if (session.reconnectTimer) clearTimeout(session.reconnectTimer);
+    if (session.qrExpireTimer) clearTimeout(session.qrExpireTimer);
     if (session.sock) {
       try {
         await session.sock.logout().catch(() => {});
@@ -488,14 +564,31 @@ const disconnectSession = async (branchId, updateDb = true) => {
 
 /**
  * Auto-restaura las sesiones de sucursales que usan Baileys al iniciar el servidor.
+ * Migra automáticamente cualquier sucursal 'whatsapp_web' a 'baileys' para evitar el uso de Chromium.
  */
 const autoReconnectBaileysBranches = async () => {
   try {
+    // Migrar sucursales que hayan quedado con 'whatsapp_web' a 'baileys'
+    await Branch.updateMany(
+      { gatewayType: 'whatsapp_web' },
+      { $set: { gatewayType: 'baileys' } }
+    );
+    await BranchAIConfig.updateMany(
+      { gatewayType: 'whatsapp_web' },
+      { $set: { gatewayType: 'baileys' } }
+    );
+
     const branches = await Branch.find({
       whatsappConnected: true,
       gatewayType: 'baileys'
     });
     for (const br of branches) {
+      const credsFile = path.join(baileysAuthRoot, `session-branch_${br._id}`, 'creds.json');
+      if (!fs.existsSync(credsFile)) {
+        console.log(`[Baileys] Sucursal ${br._id} (${br.name}) sin credenciales guardadas en disco. Marcando desconectada para evitar QR en segundo plano.`);
+        await Branch.findByIdAndUpdate(br._id, { whatsappConnected: false });
+        continue;
+      }
       console.log(`[Baileys] Auto-restaurando sesión para la sucursal: ${br._id} (${br.name})`);
       initSession(br._id).catch(e =>
         console.warn(`[Baileys] Error auto-reconectando ${br._id}:`, e.message)

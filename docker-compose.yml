@@ -13,8 +13,8 @@ services:
   mongodb:
     image: mongo:4.4.18
     container_name: agentes_whatsapp_db
-    # Limita la memoria caché de WiredTiger a 200MB para convivir con FormatosCuentas en el 1GB de RAM
-    command: mongod --wiredTigerCacheSizeGB 0.20
+    # Limita la memoria caché de WiredTiger a 150MB (0.15 GB) para proteger el 1GB de RAM de la Raspberry Pi
+    command: mongod --wiredTigerCacheSizeGB 0.15
     ports:
       - "${MONGO_EXTERNAL_PORT:-48160}:27017"
     volumes:
@@ -26,10 +26,10 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 256M
 
   # ===================================================================
-  # Backend (Node.js + Puppeteer / WhatsApp Web / Gemini AI)
+  # Backend (Node.js + Baileys WebSockets / Gemini AI)
   # ===================================================================
   backend:
     build:
@@ -47,11 +47,12 @@ services:
       - WHATSAPP_TOKEN=${WHATSAPP_TOKEN}
       - WHATSAPP_PHONE_NUMBER_ID=${WHATSAPP_PHONE_NUMBER_ID}
       - WHATSAPP_VERIFY_TOKEN=${WHATSAPP_VERIFY_TOKEN}
-      - DEFAULT_GATEWAY_TYPE=${DEFAULT_GATEWAY_TYPE:-baileys}
+      - DEFAULT_GATEWAY_TYPE=baileys
+      - ALLOW_CHROMIUM=false
+      - NODE_OPTIONS=--max-old-space-size=256
       - PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-      - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
     volumes:
-      # Persistencia de la sesión autenticada de WhatsApp Web (evita re-escanear el código QR al reiniciar)
+      # Persistencia de la sesión autenticada de WhatsApp (Baileys)
       - agentes_whatsapp_auth:/app/.wwebjs_auth
     depends_on:
       - mongodb
@@ -60,16 +61,16 @@ services:
     restart: unless-stopped
     logging: *default-logging
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:' + (process.env.PORT || 4050) + '/ping', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:$${PORT:-4050}/ping >/dev/null 2>&1 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 25s
-    shm_size: '512mb'
+    shm_size: '64mb'
     deploy:
       resources:
         limits:
-          memory: 1500M
+          memory: 350M
 
   # ===================================================================
   # Frontend (React + Nginx)

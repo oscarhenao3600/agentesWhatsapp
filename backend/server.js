@@ -7,14 +7,18 @@ const cors = require('cors');
 const helmet = require('helmet');
 const mongoSanitize = require('express-mongo-sanitize');
 const connectDB = require('./config/db');
+const { ensureAdminUser } = require('./seedAdmin');
 
-// Conectar a la base de datos y restaurar sesiones activas
-connectDB().then(() => {
+// Conectar a la base de datos, garantizar usuario administrador y restaurar sesiones activas
+connectDB().then(async () => {
+  try {
+    await ensureAdminUser();
+  } catch (err) {
+    console.error('⚠️ Error verificando usuario administrador inicial:', err.message);
+  }
   const { autoReconnectBaileysBranches } = require('./services/baileysService');
-  const { autoReconnectBranches } = require('./services/whatsappWebService');
   setTimeout(() => {
     autoReconnectBaileysBranches();
-    autoReconnectBranches();
   }, 2000);
 });
 

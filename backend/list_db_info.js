@@ -1,12 +1,15 @@
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
+require('dotenv').config({ override: true });
 const mongoose = require('mongoose');
+const connectDB = require('./config/db');
 const User = require('./models/User');
 const Business = require('./models/Business');
 const Branch = require('./models/Branch');
 
 async function main() {
   try {
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/agentes_whatsapp');
+    await connectDB();
     console.log('🟢 Conectado a MongoDB.\n');
 
     console.log('👥 USUARIOS REGISTRADOS:');
