@@ -599,10 +599,62 @@ const autoReconnectBaileysBranches = async () => {
   }
 };
 
+/**
+ * Envía un mensaje directo de WhatsApp a un número específico usando la sesión activa de la sucursal
+ * (o cualquier otra sesión activa de Baileys como respaldo).
+ * Registra el ID del mensaje en sentByBotIds para evitar bucles infinitos.
+ * @param {string} branchId
+ * @param {string} targetPhone - Número destino con código de país (ej. "573113414361")
+ * @param {string} text - Contenido del mensaje
+ * @returns {Promise<boolean>} true si se envió correctamente
+ */
+const sendDirectMessage = async (branchId, targetPhone, text) => {
+  const cleanPhone = String(targetPhone || '').replace(/[^0-9]/g, '');
+  if (!cleanPhone || !text) return false;
+
+  let session = branchId ? sessions.get(branchId.toString()) : null;
+  if (!session || session.status !== 'connected' || !session.sock) {
+    // Respaldo: buscar cualquier sesión activa de Baileys para garantizar que la alerta llegue al admin
+    for (const s of sessions.values()) {
+      if (s.status === 'connected' && s.sock) {
+        session = s;
+        break;
+      }
+    }
+  }
+
+  if (!session || session.status !== 'connected' || !session.sock) {
+    console.warn(`[Baileys] No hay sesión activa conectada para enviar alerta al admin (${cleanPhone}).`);
+    return false;
+  }
+
+  let targetJid = `${cleanPhone}@s.whatsapp.net`;
+  try {
+    if (typeof session.sock.onWhatsApp === 'function') {
+      const [result] = await session.sock.onWhatsApp(cleanPhone);
+      if (result && result.exists && result.jid) {
+        targetJid = result.jid;
+      }
+    }
+  } catch (e) {
+    // Continuar con el JID estándar si falla la consulta onWhatsApp
+  }
+
+  const sentMsg = await session.sock.sendMessage(targetJid, { text });
+  if (sentMsg?.key?.id) {
+    sentByBotIds.add(sentMsg.key.id);
+    setTimeout(() => sentByBotIds.delete(sentMsg.key.id), 60000);
+  }
+  console.log(`[Baileys] 🚨 Alerta técnica enviada al administrador (${targetJid}).`);
+  return true;
+};
+
 module.exports = {
   initSession,
   getSessionStatus,
   hasActiveSession,
   disconnectSession,
-  autoReconnectBaileysBranches
+  autoReconnectBaileysBranches,
+  sendDirectMessage
 };
+

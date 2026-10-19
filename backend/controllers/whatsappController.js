@@ -81,6 +81,139 @@ const isAuthorizedTester = (authorizedTarget, { cleanFrom, extraPhone, lid, rawS
   return false;
 };
 
+const DEFAULT_ADMIN_ALERT_PHONE = '573113414361';
+
+/**
+ * Clasifica el error técnico de IA o del sistema en un motivo claro para el administrador
+ */
+const diagnoseFailureReason = (error) => {
+  const rawMsg = error?.message || String(error || 'Error desconocido');
+  const lower = rawMsg.toLowerCase();
+
+  if (
+    lower.includes('429') ||
+    lower.includes('resource_exhausted') ||
+    lower.includes('quota') ||
+    lower.includes('rate limit') ||
+    lower.includes('insufficient_quota') ||
+    lower.includes('billing')
+  ) {
+    return {
+      category: '🛑 Cuota o Tokens Agotados (Límite 429)',
+      explanation: 'Se alcanzó el límite de peticiones por minuto/día o se agotaron los tokens/saldo de la API Key configurada.',
+      rawDetail: rawMsg
+    };
+  }
+
+  if (
+    lower.includes('api_key_invalid') ||
+    lower.includes('api key not valid') ||
+    lower.includes('incorrect api key') ||
+    lower.includes('no hay api key') ||
+    lower.includes('401') ||
+    lower.includes('403') ||
+    lower.includes('unauthorized') ||
+    lower.includes('permission_denied')
+  ) {
+    return {
+      category: '🔑 Problema de API Key / Credenciales (400/401/403)',
+      explanation: 'La API Key configurada es inválida, expiró, no tiene permisos o no corresponde al proveedor (en Google Gemini debe iniciar con "AIza...").',
+      rawDetail: rawMsg
+    };
+  }
+
+  if (
+    lower.includes('503') ||
+    lower.includes('502') ||
+    lower.includes('500') ||
+    lower.includes('unavailable') ||
+    lower.includes('overloaded') ||
+    lower.includes('high demand') ||
+    lower.includes('fetch failed') ||
+    lower.includes('etimedout') ||
+    lower.includes('econnreset') ||
+    lower.includes('enotfound')
+  ) {
+    return {
+      category: '🌐 Servicio de IA Caído o Saturado (503 / Red)',
+      explanation: 'Los servidores del proveedor de IA presentan alta demanda temporal o hubo un corte de conexión a internet.',
+      rawDetail: rawMsg
+    };
+  }
+
+  if (lower.includes('404') || lower.includes('not found') || lower.includes('is not supported')) {
+    return {
+      category: '🤖 Modelo de IA No Disponible (404)',
+      explanation: 'El modelo de IA seleccionado no está disponible o fue retirado en la API del proveedor.',
+      rawDetail: rawMsg
+    };
+  }
+
+  if (lower.includes('safety') || lower.includes('blocked') || lower.includes('recitation')) {
+    return {
+      category: '🛡️ Respuesta Bloqueada por Filtro de Seguridad',
+      explanation: 'El proveedor de IA bloqueó la respuesta por políticas de seguridad de contenido.',
+      rawDetail: rawMsg
+    };
+  }
+
+  return {
+    category: '⚙️ Error Técnico Interno',
+    explanation: 'Ocurrió una excepción técnica inesperada al procesar o responder el mensaje (no es por falta de contexto del prompt).',
+    rawDetail: rawMsg
+  };
+};
+
+/**
+ * Envía una notificación detallada por WhatsApp al administrador (573113414361) indicando el motivo exacto de la falla
+ */
+const notifyAdminFailure = async ({ branch, aiConfig, cleanFrom, contactName, messageText, error }) => {
+  try {
+    const adminPhone = (process.env.ADMIN_ALERT_PHONE || DEFAULT_ADMIN_ALERT_PHONE).replace(/[^0-9]/g, '');
+    if (!adminPhone) return;
+
+    const diagnosis = diagnoseFailureReason(error);
+    const provider = aiConfig?.aiProvider || 'gemini';
+    const model = aiConfig?.aiModel || 'gemini-flash-lite-latest';
+    const usingBranchKey = Boolean(aiConfig?.apiKey && aiConfig.apiKey.trim());
+    const branchName = branch?.name || 'Sucursal desconocida';
+    const businessName = branch?.business?.name ? ` (${branch.business.name})` : '';
+    const timestamp = new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' });
+
+    const alertMessage = [
+      `🚨 *ALERTA TÉCNICA - AGENTE WHATSAPP*`,
+      ``,
+      `🏢 *Sucursal:* ${branchName}${businessName}`,
+      `👤 *Cliente afectado:* ${contactName || 'Sin nombre'} (${cleanFrom})`,
+      `💬 *Mensaje del cliente:* "${messageText || '[Multimedia]'}"`,
+      ``,
+      `🔍 *Motivo de la falla:* ${diagnosis.category}`,
+      `💡 *Diagnóstico:* ${diagnosis.explanation}`,
+      `🧠 *Proveedor / Modelo:* ${provider} / ${model} (${usingBranchKey ? 'API Key de Sucursal' : 'API Key Global .env'})`,
+      `🛠️ *Detalle técnico:* ${diagnosis.rawDetail.substring(0, 350)}`,
+      `🕒 *Hora:* ${timestamp}`
+    ].join('\n');
+
+    // 1. Intentar envío por Baileys (motor principal)
+    const baileysService = require('../services/baileysService');
+    const sentViaBaileys = await baileysService.sendDirectMessage(branch?._id, adminPhone, alertMessage);
+    if (sentViaBaileys) return;
+
+    // 2. Respaldo: intentar envío por WhatsApp Web si estuviera activo
+    const whatsappWebService = require('../services/whatsappWebService');
+    const sentViaWweb = await whatsappWebService.sendDirectMessage(branch?._id, adminPhone, alertMessage);
+    if (sentViaWweb) return;
+
+    // 3. Respaldo: intentar envío por Meta Cloud API si la sucursal tiene credenciales
+    if (branch?.whatsappNumberId && branch?.accessToken) {
+      await sendTextMessage(branch.whatsappNumberId, branch.accessToken, adminPhone, alertMessage);
+      console.log(`[MetaAPI] 🚨 Alerta técnica enviada al administrador (${adminPhone}).`);
+    }
+  } catch (notifyErr) {
+    console.error('[AdminAlert] Error enviando notificación de falla al administrador:', notifyErr.message);
+  }
+};
+
 /**
  * Procesa un mensaje entrante tanto de WhatsApp Web (vía whatsapp-web.js) como de Meta Cloud API.
  * 
@@ -119,12 +252,16 @@ const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '', arg6 = n
     hasMedia = Boolean(mediaType);
   }
 
+  let cleanFrom = '';
+  let branch = null;
+  let aiConfig = null;
+
   try {
     // Si no hay media y el texto está vacío, ignorar mensaje
     if (!hasMedia && !messageText) return;
 
     // Normalizar el identificador del remitente
-    let cleanFrom = from ? from.toString() : '';
+    cleanFrom = from ? from.toString() : '';
     if (cleanFrom.startsWith('whatsapp:')) cleanFrom = cleanFrom.replace('whatsapp:', '');
     cleanFrom = cleanFrom.replace(/@c\.us|@s\.whatsapp\.net|@lid/g, '').split(':')[0];
     
@@ -135,7 +272,6 @@ const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '', arg6 = n
     const cleanDigits = normalizePhone(cleanFrom);
 
     // 1. Obtener la sucursal (por branchId directo o por whatsappNumberId de Meta)
-    let branch = null;
     if (branchId) {
       branch = await Branch.findById(branchId).populate('business');
     } else if (phoneNumberId) {
@@ -148,7 +284,7 @@ const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '', arg6 = n
     }
 
     // 2. Obtener la configuración de IA de la sucursal
-    const aiConfig = await BranchAIConfig.findOne({ branch: branch._id });
+    aiConfig = await BranchAIConfig.findOne({ branch: branch._id });
 
     // 3. FILTRO DE MODO PRUEBAS (Protección de chats personales en demos)
     if (aiConfig && aiConfig.testMode && aiConfig.testPhoneNumber && aiConfig.testPhoneNumber.trim() !== '') {
@@ -296,6 +432,16 @@ const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '', arg6 = n
         console.log(`[MetaAPI] Contingencia (sin tokens/error IA) enviada a ${cleanFrom}: "${technicalFallbackMsg}"`);
       }
 
+      // Notificar al WhatsApp del administrador (573113414361) con el diagnóstico exacto de la falla
+      await notifyAdminFailure({
+        branch,
+        aiConfig,
+        cleanFrom,
+        contactName,
+        messageText,
+        error: aiError
+      });
+
       return technicalFallbackMsg;
     }
 
@@ -438,6 +584,16 @@ const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '', arg6 = n
         console.error('Error enviando mensaje de contingencia por Meta:', metaErr.message);
       }
     }
+
+    // Notificar al WhatsApp del administrador (573113414361) con el diagnóstico exacto de la falla
+    await notifyAdminFailure({
+      branch,
+      aiConfig,
+      cleanFrom,
+      contactName,
+      messageText,
+      error
+    });
   }
 };
 

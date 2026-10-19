@@ -15,20 +15,30 @@ const generateDynamicResponse = async (aiConfig, userMessage, history = [], extr
   let apiKey = aiConfig?.apiKey;
   let temperature = aiConfig?.temperature !== undefined ? aiConfig.temperature : 0.7;
 
-  // Si el modelo guardado es obsoleto (ej. 1.5 o 2.0 que ya no están disponibles en la API de Google), migrarlo a gemini-flash-lite-latest
+  // Si el modelo guardado es obsoleto o no existe en la API oficial de Google, migrarlo a un modelo válido
   if (modelName && (modelName.includes('gemini-1.5') || modelName.includes('gemini-2.0'))) {
     modelName = 'gemini-flash-lite-latest';
+  } else if (modelName === 'gemini-3.5-flash-lite') {
+    modelName = 'gemini-2.5-flash-lite';
+  } else if (modelName === 'gemini-3.8-flash') {
+    modelName = 'gemini-2.5-flash';
   }
+
+  // Limpiar posibles espacios en blanco al inicio o final de la API Key
+  if (typeof apiKey === 'string') {
+    apiKey = apiKey.trim();
+  }
+  const envGeminiKey = (process.env.GEMINI_API_KEY || '').trim();
 
   // Fallback si la sucursal no tiene API Key configurada
   if (!apiKey) {
-    if (process.env.GEMINI_API_KEY) {
+    if (envGeminiKey) {
       console.log('No branch API Key found, using global Gemini fallback.');
       provider = 'gemini';
       if (!modelName || modelName.includes('gemini-1.5') || modelName.includes('gemini-2.0')) {
         modelName = 'gemini-flash-lite-latest';
       }
-      apiKey = process.env.GEMINI_API_KEY;
+      apiKey = envGeminiKey;
     } else {
       throw new Error("No hay API Key configurada en la sucursal ni en el entorno (.env).");
     }
@@ -110,7 +120,16 @@ const generateDynamicResponse = async (aiConfig, userMessage, history = [], extr
 
   try {
     if (provider === 'gemini') {
-      return await callGemini(apiKey, modelName, systemInstruction, userMessage, history, temperature, maxTokens);
+      try {
+        return await callGemini(apiKey, modelName, systemInstruction, userMessage, history, temperature, maxTokens);
+      } catch (gemErr) {
+        const isInvalidKey = gemErr.message?.includes('API_KEY_INVALID') || gemErr.message?.includes('API key not valid');
+        if (isInvalidKey && envGeminiKey && envGeminiKey !== apiKey) {
+          console.warn('[AI Service] La API Key de la sucursal es inválida. Intentando con GEMINI_API_KEY global del .env...');
+          return await callGemini(envGeminiKey, modelName, systemInstruction, userMessage, history, temperature, maxTokens);
+        }
+        throw gemErr;
+      }
     } else if (provider === 'openai') {
       return await callOpenAI(apiKey, modelName, systemInstruction, userMessage, history, temperature, maxTokens);
     } else if (provider === 'deepseek') {
@@ -128,18 +147,19 @@ const generateDynamicResponse = async (aiConfig, userMessage, history = [], extr
 const callGemini = async (apiKey, modelName, systemInstruction, userMessage, history, temperature, maxTokens = 250) => {
   const genAI = new GoogleGenerativeAI(apiKey);
 
-  // Lista de modelos a intentar en cascada ante errores de cuota (429), demanda (503) o modelos no encontrados (404)
+  // Lista de modelos reales de Google Gemini a intentar en cascada ante errores de cuota (429), demanda (503) o modelos no encontrados (404)
   const candidateModels = [
     modelName,
     'gemini-flash-lite-latest',
-    'gemini-3.5-flash-lite',
-    'gemini-3.8-flash',
-    'gemini-2.5-flash'
+    'gemini-2.5-flash-lite',
+    'gemini-2.5-flash',
+    'gemini-flash-latest'
   ];
 
   // Filtrar modelos no válidos, obsoletos y eliminar duplicados
-  const uniqueModels = [...new Set(candidateModels.filter(m => m && !m.includes('gemini-1.5') && !m.includes('gemini-2.0')))];
+  const uniqueModels = [...new Set(candidateModels.filter(m => m && !m.includes('gemini-1.5') && !m.includes('gemini-2.0') && m !== 'gemini-3.5-flash-lite' && m !== 'gemini-3.8-flash'))];
 
+  let primaryError = null;
   let lastError = null;
 
   for (const targetModel of uniqueModels) {
@@ -172,6 +192,8 @@ const callGemini = async (apiKey, modelName, systemInstruction, userMessage, his
       return response.text();
     };
 
+    let abortAllModels = false;
+
     // Reintentar hasta 2 veces por modelo en caso de saturación temporal (503)
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
@@ -179,19 +201,36 @@ const callGemini = async (apiKey, modelName, systemInstruction, userMessage, his
         return text;
       } catch (err) {
         lastError = err;
-        const isDemandOrQuota = err.message.includes('503') || err.message.includes('429') || err.message.includes('RESOURCE_EXHAUSTED') || err.message.includes('quota') || err.message.includes('404');
-        if (err.message.includes('503') && attempt < 2) {
-          console.warn(`[Gemini Retry] Modelo ${targetModel} saturado (intento ${attempt}). Reintentando en 1000ms...`);
-          await new Promise(r => setTimeout(r, 1000));
+        const msg = err.message || '';
+        // Preservar el primer error relevante (ej. 429 cuota o 503 saturación) para que no sea sobrescrito por un 404 secundario
+        if (!primaryError || (!msg.includes('404') && primaryError.message?.includes('404'))) {
+          primaryError = err;
+        }
+
+        const isInvalidKey = msg.includes('API_KEY_INVALID') || msg.includes('API key not valid') || msg.includes('401') || msg.includes('403');
+        if (isInvalidKey) {
+          console.error(`[Gemini Error] Credencial API Key inválida o sin permisos: ${msg}`);
+          abortAllModels = true;
+          break;
+        }
+
+        const isDemandOrQuota = msg.includes('503') || msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('quota') || msg.includes('404');
+        if ((msg.includes('503') || msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED')) && attempt < 2) {
+          console.warn(`[Gemini Retry] Modelo ${targetModel} con límite momentáneo o saturación (intento ${attempt}). Reintentando en 2500ms...`);
+          await new Promise(r => setTimeout(r, 2500));
         } else {
-          console.warn(`[Gemini Fallback] Error con modelo '${targetModel}': ${err.message.substring(0, 90)}. ${isDemandOrQuota ? 'Intentando siguiente modelo...' : ''}`);
+          console.warn(`[Gemini Fallback] Error con modelo '${targetModel}': ${msg.substring(0, 120)}. ${isDemandOrQuota ? 'Intentando siguiente modelo...' : ''}`);
           break; // Pasar al siguiente modelo de la lista
         }
       }
     }
+
+    if (abortAllModels) {
+      break;
+    }
   }
 
-  throw lastError || new Error("No se pudo generar una respuesta con ninguno de los modelos de Gemini disponibles.");
+  throw primaryError || lastError || new Error("No se pudo generar una respuesta con ninguno de los modelos de Gemini disponibles.");
 };
 
 const callOpenAI = async (apiKey, modelName, systemInstruction, userMessage, history, temperature, maxTokens = 250) => {

@@ -483,10 +483,38 @@ const autoReconnectBranches = async () => {
   }
 };
 
+/**
+ * Envía un mensaje directo a un número específico usando la sesión activa de WhatsApp Web.
+ */
+const sendDirectMessage = async (branchId, targetPhone, text) => {
+  const cleanPhone = String(targetPhone || '').replace(/[^0-9]/g, '');
+  if (!cleanPhone || !text) return false;
+
+  let session = branchId ? sessions.get(branchId.toString()) : null;
+  if (!session || session.status !== 'connected' || !session.client) {
+    for (const s of sessions.values()) {
+      if (s.status === 'connected' && s.client) {
+        session = s;
+        break;
+      }
+    }
+  }
+
+  if (!session || session.status !== 'connected' || !session.client) {
+    return false;
+  }
+
+  const chatId = `${cleanPhone}@c.us`;
+  await session.client.sendMessage(chatId, text);
+  return true;
+};
+
 module.exports = {
   initSession,
   getSessionStatus,
   hasActiveSession,
   disconnectSession,
-  autoReconnectBranches
+  autoReconnectBranches,
+  sendDirectMessage
 };
+

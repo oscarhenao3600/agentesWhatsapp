@@ -32,8 +32,7 @@ const renderModelOptions = (aiProvider) => {
       return (
         <>
           <option value="gemini-flash-lite-latest">Gemini Flash Lite (Recomendado - Ultra rápido y alta cuota)</option>
-          <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash Lite</option>
-          <option value="gemini-3.8-flash">Gemini 3.8 Flash</option>
+          <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite</option>
           <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
           <option value="gemini-flash-latest">Gemini Flash Latest</option>
         </>
