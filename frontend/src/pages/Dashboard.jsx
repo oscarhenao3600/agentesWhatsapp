@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -19,18 +19,13 @@ const Dashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [businesses, setBusinesses] = useState([]);
-  const [allUsers, setAllUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [selectedBusiness, setSelectedBusiness] = useState(null);
 
-  useEffect(() => {
-    fetchData();
-    if (user?.role === 'admin') fetchUsers();
-  }, [user]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
+    if (!user?.token) return;
     try {
       const config = { headers: { Authorization: `Bearer ${user.token}` } };
       const endpoint = user.role === 'admin' ? '/api/business' : '/api/business/me';
@@ -41,17 +36,33 @@ const Dashboard = () => {
       console.error('Error fetching data:', error);
       setLoading(false);
     }
-  };
+  }, [user?.token, user?.role]);
 
-  const fetchUsers = async () => {
-    try {
-      const config = { headers: { Authorization: `Bearer ${user.token}` } };
-      const { data } = await axios.get('/api/auth/users', config);
-      setAllUsers(data);
-    } catch (error) {
-      console.error('Error fetching users:', error);
-    }
-  };
+  useEffect(() => {
+    if (!user?.token) return;
+    let ignore = false;
+    const config = { headers: { Authorization: `Bearer ${user.token}` } };
+    const endpoint = user.role === 'admin' ? '/api/business' : '/api/business/me';
+
+    axios
+      .get(endpoint, config)
+      .then(({ data }) => {
+        if (!ignore) {
+          setBusinesses(Array.isArray(data) ? data : [data]);
+          setLoading(false);
+        }
+      })
+      .catch((error) => {
+        if (!ignore) {
+          console.error('Error fetching data:', error);
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [user?.token, user?.role]);
 
   const openCreateModal = () => {
     setSelectedBusiness(null);
@@ -158,6 +169,7 @@ const Dashboard = () => {
       </section>
 
       <BusinessModal 
+        key={selectedBusiness?._id || 'new'}
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
         business={selectedBusiness}
@@ -168,8 +180,7 @@ const Dashboard = () => {
       <UserModal 
         isOpen={isUserModalOpen} 
         onClose={() => setIsUserModalOpen(false)} 
-        adminToken={user?.token}
-        onSave={fetchUsers}
+        onSave={fetchData}
       />
     </>
   );

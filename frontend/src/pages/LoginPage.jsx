@@ -32,10 +32,11 @@ const LoginPage = () => {
 
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px' }}>Usuario</label>
+            <label htmlFor="login-username" style={{ display: 'block', marginBottom: '8px', fontSize: '14px' }}>Usuario</label>
             <div style={{ position: 'relative' }}>
               <User size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
               <input
+                id="login-username"
                 type="text"
                 placeholder="oscarhenao"
                 className="input-field"
@@ -48,10 +49,11 @@ const LoginPage = () => {
           </div>
 
           <div style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px' }}>Contraseña</label>
+            <label htmlFor="login-password" style={{ display: 'block', marginBottom: '8px', fontSize: '14px' }}>Contraseña</label>
             <div style={{ position: 'relative' }}>
               <Lock size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
               <input
+                id="login-password"
                 type="password"
                 placeholder="••••••••"
                 className="input-field"

@@ -1,14 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { 
   Building2, 
   Plus, 
-  Search,
   MoreVertical,
   ArrowRight,
   ExternalLink,
-  Bot,
   Trash2
 } from 'lucide-react';
 import axios from 'axios';
@@ -22,11 +20,8 @@ const BusinessList = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedBusiness, setSelectedBusiness] = useState(null);
 
-  useEffect(() => {
-    fetchBusinesses();
-  }, []);
-
-  const fetchBusinesses = async () => {
+  const fetchBusinesses = useCallback(async () => {
+    if (!user?.token) return;
     try {
       const config = { headers: { Authorization: `Bearer ${user.token}` } };
       const endpoint = user.role === 'admin' ? '/api/business' : '/api/business/me';
@@ -37,7 +32,33 @@ const BusinessList = () => {
       console.error('Error fetching businesses:', error);
       setLoading(false);
     }
-  };
+  }, [user?.token, user?.role]);
+
+  useEffect(() => {
+    if (!user?.token) return;
+    let ignore = false;
+    const config = { headers: { Authorization: `Bearer ${user.token}` } };
+    const endpoint = user.role === 'admin' ? '/api/business' : '/api/business/me';
+
+    axios
+      .get(endpoint, config)
+      .then(({ data }) => {
+        if (!ignore) {
+          setBusinesses(Array.isArray(data) ? data : [data]);
+          setLoading(false);
+        }
+      })
+      .catch((error) => {
+        if (!ignore) {
+          console.error('Error fetching businesses:', error);
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [user?.token, user?.role]);
 
   const handleDeleteBusiness = async (id, name) => {
     if (window.confirm(`¿Estás seguro de que deseas eliminar el negocio "${name}"? Esta acción eliminará todas las sucursales y configuraciones de IA asociadas de forma permanente.`)) {
@@ -84,15 +105,17 @@ const BusinessList = () => {
               </div>
               {user.role === 'admin' ? (
                 <button 
+                  type="button"
                   onClick={() => handleDeleteBusiness(biz._id, biz.name)}
                   className="btn-secondary" 
                   style={{ padding: '8px', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)' }}
                   title="Eliminar Negocio"
+                  aria-label={`Eliminar negocio ${biz.name}`}
                 >
                   <Trash2 size={16} />
                 </button>
               ) : (
-                <button className="btn-secondary" style={{ padding: '8px' }}>
+                <button type="button" className="btn-secondary" style={{ padding: '8px' }} aria-label={`Opciones de ${biz.name}`}>
                   <MoreVertical size={16} />
                 </button>
               )}
@@ -109,6 +132,7 @@ const BusinessList = () => {
 
             <div style={{ marginTop: 'auto', paddingTop: '20px', borderTop: '1px solid var(--border-color)', display: 'flex', gap: '10px' }}>
               <button 
+                type="button"
                 onClick={() => navigate(`/business/${biz._id}/branches`)}
                 className="btn-primary" 
                 style={{ flex: 1, padding: '10px' }}
@@ -116,9 +140,12 @@ const BusinessList = () => {
                 Sucursales <ArrowRight size={16} />
               </button>
               <button 
+                type="button"
                 onClick={() => navigate(`/business/${biz._id}/orders`)}
                 className="btn-secondary" 
                 style={{ padding: '10px' }}
+                title="Ver Pedidos"
+                aria-label={`Ver pedidos de ${biz.name}`}
               >
                 <ExternalLink size={18} />
               </button>
@@ -128,6 +155,7 @@ const BusinessList = () => {
       </div>
 
       <BusinessModal 
+        key={selectedBusiness?._id || 'new'}
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         business={selectedBusiness}

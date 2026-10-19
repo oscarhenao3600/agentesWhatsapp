@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { X, Save, Zap } from 'lucide-react';
+import { useState } from 'react';
+import { X, Zap } from 'lucide-react';
 import axios from 'axios';
 
 const BranchModal = ({ isOpen, onClose, businessId, user, onSave }) => {
@@ -18,6 +18,7 @@ const BranchModal = ({ isOpen, onClose, businessId, user, onSave }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (loading) return;
     setLoading(true);
     try {
       const config = { headers: { Authorization: `Bearer ${user.token}` } };
@@ -46,7 +47,7 @@ const BranchModal = ({ isOpen, onClose, businessId, user, onSave }) => {
       <div className="modal-content glass-card" style={{ maxWidth: '600px', width: '90%' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
           <h2 style={{ fontSize: '24px' }}>Nueva Sucursal</h2>
-          <button onClick={onClose} className="btn-secondary" style={{ padding: '5px' }}>
+          <button type="button" onClick={onClose} aria-label="Cerrar modal" className="btn-secondary" style={{ padding: '5px' }}>
             <X size={20} />
           </button>
         </div>
@@ -54,8 +55,9 @@ const BranchModal = ({ isOpen, onClose, businessId, user, onSave }) => {
         <form onSubmit={handleSubmit}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
             <div style={{ marginBottom: '15px', gridColumn: '1 / -1' }}>
-              <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>Nombre de la Sucursal</label>
+              <label htmlFor="branch-name" style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>Nombre de la Sucursal</label>
               <input 
+                id="branch-name"
                 type="text" 
                 className="input-field" 
                 required
@@ -66,8 +68,9 @@ const BranchModal = ({ isOpen, onClose, businessId, user, onSave }) => {
             </div>
 
             <div style={{ marginBottom: '15px', gridColumn: '1 / -1' }}>
-              <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>Categoría / Tipo de Negocio</label>
+              <label htmlFor="branch-type" style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>Categoría / Tipo de Negocio</label>
               <select 
+                id="branch-type"
                 className="input-field" 
                 value={formData.businessType}
                 onChange={(e) => setFormData({ ...formData, businessType: e.target.value })}
@@ -81,8 +84,9 @@ const BranchModal = ({ isOpen, onClose, businessId, user, onSave }) => {
             </div>
 
             <div style={{ marginBottom: '15px' }}>
-              <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>Teléfono de Contacto</label>
+              <label htmlFor="branch-phone" style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>Teléfono de Contacto</label>
               <input 
+                id="branch-phone"
                 type="text" 
                 className="input-field" 
                 required
@@ -93,8 +97,9 @@ const BranchModal = ({ isOpen, onClose, businessId, user, onSave }) => {
             </div>
 
             <div style={{ marginBottom: '15px' }}>
-              <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>ID Número WhatsApp (Meta)</label>
+              <label htmlFor="branch-whatsapp-id" style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>ID Número WhatsApp (Meta)</label>
               <input 
+                id="branch-whatsapp-id"
                 type="text" 
                 className="input-field" 
                 required
@@ -105,8 +110,9 @@ const BranchModal = ({ isOpen, onClose, businessId, user, onSave }) => {
             </div>
 
             <div style={{ marginBottom: '15px' }}>
-              <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>Token Verificación Webhook</label>
+              <label htmlFor="branch-verify-token" style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>Token Verificación Webhook</label>
               <input 
+                id="branch-verify-token"
                 type="text" 
                 className="input-field" 
                 required
@@ -117,8 +123,9 @@ const BranchModal = ({ isOpen, onClose, businessId, user, onSave }) => {
             </div>
 
             <div style={{ marginBottom: '15px' }}>
-              <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>Token de Acceso Meta</label>
+              <label htmlFor="branch-access-token" style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>Token de Acceso Meta</label>
               <input 
+                id="branch-access-token"
                 type="password" 
                 className="input-field" 
                 required
@@ -129,8 +136,9 @@ const BranchModal = ({ isOpen, onClose, businessId, user, onSave }) => {
             </div>
 
             <div style={{ marginBottom: '15px', gridColumn: '1 / -1' }}>
-              <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>Prompt Inicial de la IA</label>
+              <label htmlFor="branch-base-prompt" style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>Prompt Inicial de la IA</label>
               <textarea 
+                id="branch-base-prompt"
                 className="input-field" 
                 style={{ height: '80px' }}
                 placeholder="Ej: Eres un asistente amable para la sucursal centro..."

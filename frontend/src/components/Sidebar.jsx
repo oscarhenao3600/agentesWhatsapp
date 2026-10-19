@@ -76,7 +76,15 @@ const Sidebar = ({ isOpen, onClose, theme, toggleTheme }) => {
   return (
     <>
       {/* Drawer Overlay for Mobile */}
-      {isOpen && <div className="sidebar-overlay" onClick={onClose} />}
+      {isOpen && (
+        <button
+          type="button"
+          className="sidebar-overlay"
+          onClick={onClose}
+          aria-label="Cerrar menú lateral"
+          style={{ border: 'none', padding: 0, cursor: 'pointer' }}
+        />
+      )}
 
       <aside className={`main-sidebar ${isOpen ? 'mobile-open' : ''}`}>
         <div className="sidebar-header">
@@ -91,9 +99,9 @@ const Sidebar = ({ isOpen, onClose, theme, toggleTheme }) => {
         </div>
 
         <nav className="sidebar-nav">
-          {filteredItems.map((item, index) => (
+          {filteredItems.map((item) => (
             <NavLink 
-              key={index}
+              key={item.path}
               to={item.path}
               className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
               onClick={onClose}

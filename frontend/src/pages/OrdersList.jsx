@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
@@ -21,11 +21,8 @@ const OrdersList = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchOrders();
-  }, [businessId]);
-
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
+    if (!user?.token) return;
     try {
       const config = { headers: { Authorization: `Bearer ${user.token}` } };
       const { data } = await axios.get(`/api/order/business/${businessId}`, config);
@@ -35,7 +32,32 @@ const OrdersList = () => {
       console.error('Error fetching orders:', error);
       setLoading(false);
     }
-  };
+  }, [businessId, user?.token]);
+
+  useEffect(() => {
+    if (!user?.token) return;
+    let ignore = false;
+    const config = { headers: { Authorization: `Bearer ${user.token}` } };
+
+    axios
+      .get(`/api/order/business/${businessId}`, config)
+      .then(({ data }) => {
+        if (!ignore) {
+          setOrders(data);
+          setLoading(false);
+        }
+      })
+      .catch((error) => {
+        if (!ignore) {
+          console.error('Error fetching orders:', error);
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [businessId, user?.token]);
 
   const updateStatus = async (orderId, newStatus) => {
     try {
@@ -200,8 +222,8 @@ const OrdersList = () => {
                             </tr>
                           </thead>
                           <tbody>
-                            {order.items.map((item, i) => (
-                              <tr key={i}>
+                            {order.items.map((item) => (
+                              <tr key={item._id || `${item.name}-${item.quantity}-${item.price}`}>
                                 <td style={{ padding: '4px 0' }}>{item.name}</td>
                                 <td>x{item.quantity}</td>
                                 <td style={{ textAlign: 'right' }}>${item.price?.toLocaleString()}</td>
@@ -225,6 +247,7 @@ const OrdersList = () => {
                 {/* Acciones */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', justifyContent: 'center', minWidth: '150px' }}>
                   <select 
+                    aria-label={`Cambiar estado del pedido de ${order.customerName || order.customerPhone}`}
                     className="input-field" 
                     style={{ padding: '8px', fontSize: '13px' }}
                     value={order.status}

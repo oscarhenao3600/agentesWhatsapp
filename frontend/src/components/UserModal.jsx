@@ -1,28 +1,36 @@
-import { useState } from 'react';
-import { X, UserPlus, Save, Lock, User } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { X, UserPlus, Lock, User } from 'lucide-react';
 import axios from 'axios';
 
-const UserModal = ({ isOpen, onClose, onSave, adminToken }) => {
+const UserModal = ({ isOpen, onClose, onSave }) => {
   const [formData, setFormData] = useState({
     username: '',
     password: '',
     role: 'client'
   });
   const [loading, setLoading] = useState(false);
+  const reqIdRef = useRef(0);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (loading) return;
+    const currentReqId = ++reqIdRef.current;
     setLoading(true);
     try {
       // Usamos la ruta de registro existente, pero desde la sesión de admin
       await axios.post('/api/auth/register', formData);
+      if (currentReqId !== reqIdRef.current) return;
       onSave();
       onClose();
       setFormData({ username: '', password: '', role: 'client' }); // Limpiar
     } catch (error) {
-      alert(error.response?.data?.message || 'Error al crear el usuario');
+      if (currentReqId === reqIdRef.current) {
+        alert(error.response?.data?.message || 'Error al crear el usuario');
+      }
     } finally {
-      setLoading(false);
+      if (currentReqId === reqIdRef.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -35,15 +43,16 @@ const UserModal = ({ isOpen, onClose, onSave, adminToken }) => {
           <h2 style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: 0 }}>
             <UserPlus className="gradient-text" /> Nuevo Cliente
           </h2>
-          <button onClick={onClose} className="btn-secondary" style={{ padding: '5px', borderRadius: '50%' }}>
+          <button type="button" onClick={onClose} aria-label="Cerrar modal" className="btn-secondary" style={{ padding: '5px', borderRadius: '50%' }}>
             <X size={20} />
           </button>
         </div>
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label><User size={14} /> Nombre de Usuario</label>
+            <label htmlFor="user-modal-username"><User size={14} /> Nombre de Usuario</label>
             <input 
+              id="user-modal-username"
               type="text" 
               placeholder="Ej: pizzeriagusto"
               value={formData.username}
@@ -53,8 +62,9 @@ const UserModal = ({ isOpen, onClose, onSave, adminToken }) => {
           </div>
 
           <div className="form-group">
-            <label><Lock size={14} /> Contraseña Inicial</label>
+            <label htmlFor="user-modal-password"><Lock size={14} /> Contraseña Inicial</label>
             <input 
+              id="user-modal-password"
               type="password" 
               placeholder="••••••••"
               value={formData.password}

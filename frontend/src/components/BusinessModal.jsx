@@ -1,50 +1,39 @@
 import { useState, useEffect } from 'react';
-import { X, Save, Bot, User, Phone, Hash } from 'lucide-react';
+import { X, Save, Bot, User, Hash } from 'lucide-react';
 import axios from 'axios';
 
 const BusinessModal = ({ isOpen, onClose, business, user, onSave }) => {
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    commission: 10,
-    ownerId: ''
-  });
+  const [formData, setFormData] = useState(() => ({
+    name: business?.name || '',
+    description: business?.description || '',
+    commission: business?.commission || 10,
+    ownerId: business?.owner?._id || business?.owner || ''
+  }));
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  const isAdmin = user?.role === 'admin';
+  const userToken = user?.token;
+
   useEffect(() => {
-    if (business) {
-      setFormData({
-        name: business.name || '',
-        description: business.description || '',
-        commission: business.commission || 10,
-        ownerId: business.owner?._id || business.owner || ''
-      });
-    } else {
-      setFormData({
-        name: '',
-        description: '',
-        commission: 10,
-        ownerId: ''
-      });
-    }
+    if (!isOpen || !isAdmin || !userToken) return;
+    let ignore = false;
 
-    if (isOpen && user?.role === 'admin') {
-      fetchUsers();
-    }
-  }, [business, isOpen, user]);
+    axios
+      .get('/api/auth/users', {
+        headers: { Authorization: `Bearer ${userToken}` }
+      })
+      .then(({ data }) => {
+        if (!ignore) setUsers(data);
+      })
+      .catch((error) => {
+        if (!ignore) console.error('Error fetching users:', error);
+      });
 
-  const fetchUsers = async () => {
-    try {
-      const config = {
-        headers: { Authorization: `Bearer ${user.token}` }
-      };
-      const { data } = await axios.get('/api/auth/users', config);
-      setUsers(data);
-    } catch (error) {
-      console.error('Error fetching users:', error);
-    }
-  };
+    return () => {
+      ignore = true;
+    };
+  }, [isOpen, isAdmin, userToken]);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -52,6 +41,7 @@ const BusinessModal = ({ isOpen, onClose, business, user, onSave }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (loading) return;
     setLoading(true);
     try {
       const config = {
@@ -83,15 +73,16 @@ const BusinessModal = ({ isOpen, onClose, business, user, onSave }) => {
             <Bot className="gradient-text" /> 
             {business ? 'Editar Negocio' : 'Nuevo Negocio'}
           </h2>
-          <button onClick={onClose} className="btn-secondary" style={{ padding: '5px', borderRadius: '50%' }}>
+          <button type="button" onClick={onClose} aria-label="Cerrar modal" className="btn-secondary" style={{ padding: '5px', borderRadius: '50%' }}>
             <X size={20} />
           </button>
         </div>
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label><User size={14} /> Nombre del Negocio</label>
+            <label htmlFor="biz-modal-name"><User size={14} /> Nombre del Negocio</label>
             <input 
+              id="biz-modal-name"
               type="text" 
               name="name" 
               value={formData.name} 
@@ -102,8 +93,9 @@ const BusinessModal = ({ isOpen, onClose, business, user, onSave }) => {
           </div>
 
           <div className="form-group">
-            <label><Hash size={14} /> Comisión (%)</label>
+            <label htmlFor="biz-modal-commission"><Hash size={14} /> Comisión (%)</label>
             <input 
+              id="biz-modal-commission"
               type="number" 
               name="commission" 
               value={formData.commission} 
@@ -115,8 +107,8 @@ const BusinessModal = ({ isOpen, onClose, business, user, onSave }) => {
 
           {user?.role === 'admin' && !business && (
             <div className="form-group">
-              <label><User size={14} /> Cliente Propietario</label>
-              <select name="ownerId" value={formData.ownerId} onChange={handleChange} required>
+              <label htmlFor="biz-modal-owner"><User size={14} /> Cliente Propietario</label>
+              <select id="biz-modal-owner" name="ownerId" value={formData.ownerId} onChange={handleChange} required>
                 <option value="">Selecciona un cliente...</option>
                 {users.map(u => (
                   <option key={u._id} value={u._id}>{u.username}</option>
@@ -126,8 +118,9 @@ const BusinessModal = ({ isOpen, onClose, business, user, onSave }) => {
           )}
 
           <div className="form-group">
-            <label><Bot size={14} /> Descripción del Negocio</label>
+            <label htmlFor="biz-modal-description"><Bot size={14} /> Descripción del Negocio</label>
             <textarea 
+              id="biz-modal-description"
               name="description" 
               value={formData.description} 
               onChange={handleChange} 
@@ -184,7 +177,7 @@ const BusinessModal = ({ isOpen, onClose, business, user, onSave }) => {
           background: rgba(255, 255, 255, 0.05);
           color: var(--text-primary);
           font-size: 15px;
-          transition: all 0.2s;
+          transition: border-color 0.2s, box-shadow 0.2s;
         }
         input:focus, textarea:focus, select:focus {
           outline: none;
@@ -204,3 +197,4 @@ const BusinessModal = ({ isOpen, onClose, business, user, onSave }) => {
 };
 
 export default BusinessModal;
+

@@ -2,8 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { 
-  MapPin, 
-  Search,
   Phone,
   Zap,
   Settings,
@@ -19,21 +17,29 @@ const GlobalBranchesList = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchBranches();
-  }, []);
+    if (!user?.token) return;
+    let ignore = false;
+    const config = { headers: { Authorization: `Bearer ${user.token}` } };
 
-  const fetchBranches = async () => {
-    try {
-      const config = { headers: { Authorization: `Bearer ${user.token}` } };
-      // Endpoint para obtener todas las sucursales del usuario
-      const { data } = await axios.get('/api/branch', config); 
-      setBranches(data);
-      setLoading(false);
-    } catch (error) {
-      console.error('Error fetching branches:', error);
-      setLoading(false);
-    }
-  };
+    axios
+      .get('/api/branch', config)
+      .then(({ data }) => {
+        if (!ignore) {
+          setBranches(data);
+          setLoading(false);
+        }
+      })
+      .catch((error) => {
+        if (!ignore) {
+          console.error('Error fetching branches:', error);
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [user?.token]);
 
   if (loading) return <div>Cargando Sucursales...</div>;
 
@@ -72,13 +78,14 @@ const GlobalBranchesList = () => {
 
             <div style={{ display: 'flex', gap: '10px' }}>
               <button 
+                type="button"
                 onClick={() => navigate(`/branch/${branch._id}/ai-config`)}
                 className="btn-primary" 
                 style={{ flex: 1, padding: '10px' }}
               >
                 <Settings size={16} /> Configurar IA
               </button>
-              <button className="btn-secondary" style={{ padding: '10px' }}>
+              <button type="button" className="btn-secondary" style={{ padding: '10px' }} aria-label={`Opciones de ${branch.name}`}>
                 <MoreVertical size={16} />
               </button>
             </div>

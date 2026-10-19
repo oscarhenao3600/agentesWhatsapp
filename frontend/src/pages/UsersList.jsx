@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { 
-  Users as UsersIcon, 
   UserPlus, 
   Search,
   MoreVertical,
@@ -19,11 +18,8 @@ const UsersList = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
-  useEffect(() => {
-    fetchUsers();
-  }, []);
-
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
+    if (!user?.token) return;
     try {
       const config = { headers: { Authorization: `Bearer ${user.token}` } };
       const { data } = await axios.get('/api/auth/users', config);
@@ -33,7 +29,32 @@ const UsersList = () => {
       console.error('Error fetching users:', error);
       setLoading(false);
     }
-  };
+  }, [user?.token]);
+
+  useEffect(() => {
+    if (!user?.token) return;
+    let ignore = false;
+    const config = { headers: { Authorization: `Bearer ${user.token}` } };
+
+    axios
+      .get('/api/auth/users', config)
+      .then(({ data }) => {
+        if (!ignore) {
+          setUsers(data);
+          setLoading(false);
+        }
+      })
+      .catch((error) => {
+        if (!ignore) {
+          console.error('Error fetching users:', error);
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [user?.token]);
 
   const filteredUsers = users.filter(u => 
     u.username.toLowerCase().includes(searchTerm.toLowerCase())
@@ -56,13 +77,17 @@ const UsersList = () => {
       </header>
 
       <div className="glass-card" style={{ padding: '0px', overflow: 'hidden' }}>
-        <div style={{ padding: '20px', borderBottom: '1px solid var(--border-color)', display: 'flex', gap: '15px' }}>
+        <div style={{ padding: '20px', borderBottom: '1px solid var(--border-color)', display: 'flex', gap: '15px', alignItems: 'center' }}>
+          <label htmlFor="users-search" style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+            Buscar usuario
+          </label>
           <div style={{ position: 'relative', flex: 1 }}>
             <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
             <input 
+              id="users-search"
               type="text" 
               className="input-field" 
-              placeholder="Buscar por nombre de usuario..." 
+              placeholder="Ej: pizzeriagusto..." 
               style={{ paddingLeft: '40px' }}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -86,7 +111,7 @@ const UsersList = () => {
               <tr key={u._id} style={{ borderBottom: '1px solid var(--border-color)', transition: 'background 0.2s' }}>
                 <td style={{ padding: '15px 24px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div style={{ width: '35px', height: '35px', borderRadius: '50%', background: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyCenter: 'center' }}>
+                    <div style={{ width: '35px', height: '35px', borderRadius: '50%', background: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <User size={18} color="var(--accent-primary)" />
                     </div>
                     <span style={{ fontWeight: '600' }}>{u.username}</span>
@@ -115,7 +140,7 @@ const UsersList = () => {
                   {new Date(u.createdAt || Date.now()).toLocaleDateString()}
                 </td>
                 <td style={{ padding: '15px 24px', textAlign: 'right' }}>
-                  <button className="btn-secondary" style={{ padding: '8px' }}>
+                  <button type="button" className="btn-secondary" style={{ padding: '8px' }} aria-label={`Opciones de usuario ${u.username}`}>
                     <MoreVertical size={16} />
                   </button>
                 </td>
@@ -129,7 +154,6 @@ const UsersList = () => {
       <UserModal 
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        adminToken={user.token}
         onSave={fetchUsers}
       />
     </>

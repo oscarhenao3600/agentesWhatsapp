@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
@@ -8,7 +8,6 @@ import {
   Phone, 
   Zap,
   Settings,
-  MoreVertical,
   Trash2
 } from 'lucide-react';
 import axios from 'axios';
@@ -23,12 +22,8 @@ const BranchManagement = () => {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  useEffect(() => {
-    fetchBranches();
-    fetchBusinessDetails();
-  }, [businessId]);
-
-  const fetchBranches = async () => {
+  const fetchBranches = useCallback(async () => {
+    if (!user?.token) return;
     try {
       const config = { headers: { Authorization: `Bearer ${user.token}` } };
       const { data } = await axios.get(`/api/branch/business/${businessId}`, config);
@@ -38,17 +33,35 @@ const BranchManagement = () => {
       console.error('Error fetching branches:', error);
       setLoading(false);
     }
-  };
+  }, [businessId, user?.token]);
 
-  const fetchBusinessDetails = async () => {
-    try {
-      const config = { headers: { Authorization: `Bearer ${user.token}` } };
-      const { data } = await axios.get(`/api/business/${businessId}`, config);
-      setBusiness(data);
-    } catch (error) {
-      console.error('Error fetching business details:', error);
-    }
-  };
+  useEffect(() => {
+    if (!user?.token) return;
+    let ignore = false;
+    const config = { headers: { Authorization: `Bearer ${user.token}` } };
+
+    Promise.all([
+      axios.get(`/api/branch/business/${businessId}`, config),
+      axios.get(`/api/business/${businessId}`, config)
+    ])
+      .then(([branchesRes, bizRes]) => {
+        if (!ignore) {
+          setBranches(branchesRes.data);
+          setBusiness(bizRes.data);
+          setLoading(false);
+        }
+      })
+      .catch((error) => {
+        if (!ignore) {
+          console.error('Error fetching branch management data:', error);
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [businessId, user?.token]);
 
   const handleDeleteBranch = async (id, name) => {
     if (window.confirm(`¿Estás seguro de que deseas eliminar la sucursal "${name}"?`)) {

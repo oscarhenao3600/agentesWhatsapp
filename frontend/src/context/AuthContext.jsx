@@ -1,4 +1,4 @@
-import { createContext, useState, useEffect, useContext } from 'react';
+import { createContext, useState, useContext, useMemo, useCallback } from 'react';
 import axios from 'axios';
 
 const AuthContext = createContext();
@@ -6,18 +6,17 @@ const AuthContext = createContext();
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
+  const [user, setUser] = useState(() => {
+    try {
+      const storedUser = localStorage.getItem('user');
+      return storedUser ? JSON.parse(storedUser) : null;
+    } catch {
+      return null;
     }
-    setLoading(false);
-  }, []);
+  });
+  const [loading] = useState(false);
 
-  const login = async (username, password) => {
+  const login = useCallback(async (username, password) => {
     try {
       const { data } = await axios.post('/api/auth/login', { username, password });
       setUser(data);
@@ -29,9 +28,9 @@ export const AuthProvider = ({ children }) => {
         message: error.response?.data?.message || 'Error al iniciar sesión'
       };
     }
-  };
+  }, []);
 
-  const register = async (username, password) => {
+  const register = useCallback(async (username, password) => {
     try {
       const { data } = await axios.post('/api/auth/register', { username, password });
       setUser(data);
@@ -43,16 +42,22 @@ export const AuthProvider = ({ children }) => {
         message: error.response?.data?.message || 'Error al registrarse'
       };
     }
-  };
+  }, []);
 
-  const logout = () => {
+  const logout = useCallback(() => {
     setUser(null);
     localStorage.removeItem('user');
-  };
+  }, []);
+
+  const contextValue = useMemo(
+    () => ({ user, login, register, logout, loading }),
+    [user, login, register, logout, loading]
+  );
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, loading }}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );
 };
+

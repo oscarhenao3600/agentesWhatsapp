@@ -38,10 +38,11 @@ const RegisterPage = () => {
 
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px' }}>Usuario</label>
+            <label htmlFor="register-username" style={{ display: 'block', marginBottom: '8px', fontSize: '14px' }}>Usuario</label>
             <div style={{ position: 'relative' }}>
               <User size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
               <input
+                id="register-username"
                 type="text"
                 placeholder="Elige un nombre de usuario"
                 className="input-field"
@@ -54,10 +55,11 @@ const RegisterPage = () => {
           </div>
 
           <div style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px' }}>Contraseña</label>
+            <label htmlFor="register-password" style={{ display: 'block', marginBottom: '8px', fontSize: '14px' }}>Contraseña</label>
             <div style={{ position: 'relative' }}>
               <Lock size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
               <input
+                id="register-password"
                 type="password"
                 placeholder="••••••••"
                 className="input-field"
@@ -70,10 +72,11 @@ const RegisterPage = () => {
           </div>
 
           <div style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px' }}>Confirmar Contraseña</label>
+            <label htmlFor="register-confirm-password" style={{ display: 'block', marginBottom: '8px', fontSize: '14px' }}>Confirmar Contraseña</label>
             <div style={{ position: 'relative' }}>
               <Lock size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
               <input
+                id="register-confirm-password"
                 type="password"
                 placeholder="••••••••"
                 className="input-field"
