@@ -18,6 +18,33 @@ const validateBranchAccess = async (user, branchId) => {
   return validateBusinessAccess(user, branch.business);
 };
 
+exports.getAllOrders = async (req, res) => {
+  try {
+    let businessQuery = {};
+    if (req.user.role !== 'admin') {
+      businessQuery.owner = req.user._id;
+    }
+
+    const businesses = await Business.find(businessQuery).select('_id name');
+    const businessIds = businesses.map(b => b._id);
+
+    const branches = await Branch.find({ business: { $in: businessIds } }).select('_id name business');
+    const branchIds = branches.map(b => b._id);
+
+    const orders = await Order.find({ branch: { $in: branchIds } })
+      .populate({
+        path: 'branch',
+        select: 'name business',
+        populate: { path: 'business', select: 'name' }
+      })
+      .sort({ createdAt: -1 });
+
+    res.json(orders);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 exports.getBranchOrders = async (req, res) => {
   try {
     const hasAccess = await validateBranchAccess(req.user, req.params.branchId);

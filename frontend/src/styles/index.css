@@ -1214,3 +1214,13 @@ select.input-field option {
 .source-delete-btn:hover {
   background-color: rgba(239, 68, 68, 0.1);
 }
+
+.kpi-interactive-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--accent-primary) !important;
+  box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.2);
+}
+
+.kpi-interactive-card:active {
+  transform: translateY(-1px);
+}

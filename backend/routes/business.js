@@ -69,11 +69,11 @@ router.post('/', protect, async (req, res) => {
   }
 });
 
-// @desc    Actualizar configuración de negocio por ID
+// @desc    Actualizar configuración de negocio por ID (Solo Admin)
 // @route   PUT /api/business/:id
-// @access  Private
-router.put('/:id', protect, async (req, res) => {
-  const { name, description, commission } = req.body;
+// @access  Private/Admin
+router.put('/:id', protect, authorize('admin'), async (req, res) => {
+  const { name, description, commission, ownerId } = req.body;
 
   try {
     const business = await Business.findById(req.params.id);
@@ -82,19 +82,21 @@ router.put('/:id', protect, async (req, res) => {
       return res.status(404).json({ message: 'Negocio no encontrado' });
     }
 
-    // Verificar permisos: Admin o el dueño del negocio
-    if (req.user.role !== 'admin' && business.owner.toString() !== req.user._id.toString()) {
-      return res.status(401).json({ message: 'No autorizado' });
+    if (name !== undefined && name.trim() !== '') {
+      business.name = name.trim();
     }
-
-    business.name = name || business.name;
-    business.description = description || business.description;
-    
-    if (req.user.role === 'admin' && commission !== undefined) {
-      business.commission = commission;
+    if (description !== undefined) {
+      business.description = description;
+    }
+    if (commission !== undefined) {
+      business.commission = Number(commission);
+    }
+    if (ownerId) {
+      business.owner = ownerId;
     }
 
     const updatedBusiness = await business.save();
+    await updatedBusiness.populate('owner', 'username');
     res.json(updatedBusiness);
   } catch (error) {
     res.status(500).json({ message: error.message });

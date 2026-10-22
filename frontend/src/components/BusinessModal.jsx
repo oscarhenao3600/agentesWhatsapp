@@ -6,7 +6,7 @@ const BusinessModal = ({ isOpen, onClose, business, user, onSave }) => {
   const [formData, setFormData] = useState(() => ({
     name: business?.name || '',
     description: business?.description || '',
-    commission: business?.commission || 10,
+    commission: business?.commission ?? 10,
     ownerId: business?.owner?._id || business?.owner || ''
   }));
   const [users, setUsers] = useState([]);
@@ -14,6 +14,17 @@ const BusinessModal = ({ isOpen, onClose, business, user, onSave }) => {
 
   const isAdmin = user?.role === 'admin';
   const userToken = user?.token;
+
+  useEffect(() => {
+    if (isOpen) {
+      setFormData({
+        name: business?.name || '',
+        description: business?.description || '',
+        commission: business?.commission ?? 10,
+        ownerId: business?.owner?._id || business?.owner || ''
+      });
+    }
+  }, [isOpen, business]);
 
   useEffect(() => {
     if (!isOpen || !isAdmin || !userToken) return;
@@ -105,10 +116,10 @@ const BusinessModal = ({ isOpen, onClose, business, user, onSave }) => {
             />
           </div>
 
-          {user?.role === 'admin' && !business && (
+          {user?.role === 'admin' && (
             <div className="form-group">
               <label htmlFor="biz-modal-owner"><User size={14} /> Cliente Propietario</label>
-              <select id="biz-modal-owner" name="ownerId" value={formData.ownerId} onChange={handleChange} required>
+              <select id="biz-modal-owner" name="ownerId" value={formData.ownerId} onChange={handleChange} required={!business}>
                 <option value="">Selecciona un cliente...</option>
                 {users.map(u => (
                   <option key={u._id} value={u._id}>{u.username}</option>
@@ -118,13 +129,13 @@ const BusinessModal = ({ isOpen, onClose, business, user, onSave }) => {
           )}
 
           <div className="form-group">
-            <label htmlFor="biz-modal-description"><Bot size={14} /> Descripción del Negocio</label>
+            <label htmlFor="biz-modal-description"><Bot size={14} /> Descripción sencilla del Negocio</label>
             <textarea 
               id="biz-modal-description"
               name="description" 
               value={formData.description} 
               onChange={handleChange} 
-              placeholder="Describe brevemente el negocio..."
+              placeholder="Ej: Glamping - hospedaje de lujo / Software para cuentas de cobro..."
               rows="3"
             />
           </div>

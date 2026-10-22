@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
   ArrowLeft, 
@@ -10,23 +10,28 @@ import {
   Truck,
   User,
   Phone,
-  MapPin
+  MapPin,
+  Filter
 } from 'lucide-react';
 import axios from 'axios';
 
 const OrdersList = () => {
   const { businessId } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [dateFilter, setDateFilter] = useState(() => searchParams.get('period') === 'today' ? 'today' : 'all');
+  const [statusFilter, setStatusFilter] = useState('all');
 
   const fetchOrders = useCallback(async () => {
     if (!user?.token) return;
     try {
       const config = { headers: { Authorization: `Bearer ${user.token}` } };
-      const { data } = await axios.get(`/api/order/business/${businessId}`, config);
-      setOrders(data);
+      const endpoint = businessId ? `/api/order/business/${businessId}` : '/api/order';
+      const { data } = await axios.get(endpoint, config);
+      setOrders(Array.isArray(data) ? data : []);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching orders:', error);
@@ -38,12 +43,13 @@ const OrdersList = () => {
     if (!user?.token) return;
     let ignore = false;
     const config = { headers: { Authorization: `Bearer ${user.token}` } };
+    const endpoint = businessId ? `/api/order/business/${businessId}` : '/api/order';
 
     axios
-      .get(`/api/order/business/${businessId}`, config)
+      .get(endpoint, config)
       .then(({ data }) => {
         if (!ignore) {
-          setOrders(data);
+          setOrders(Array.isArray(data) ? data : []);
           setLoading(false);
         }
       })
@@ -58,6 +64,30 @@ const OrdersList = () => {
       ignore = true;
     };
   }, [businessId, user?.token]);
+
+  const filteredOrders = useMemo(() => {
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    return orders.filter((order) => {
+      if (dateFilter === 'today' && new Date(order.createdAt) < startOfToday) {
+        return false;
+      }
+      if (statusFilter !== 'all' && order.status !== statusFilter) {
+        return false;
+      }
+      return true;
+    });
+  }, [orders, dateFilter, statusFilter]);
+
+  const handleDateFilterChange = (val) => {
+    setDateFilter(val);
+    if (val === 'today') {
+      setSearchParams({ period: 'today' });
+    } else {
+      setSearchParams({});
+    }
+  };
 
   const updateStatus = async (orderId, newStatus) => {
     try {
@@ -106,21 +136,68 @@ const OrdersList = () => {
           <h2 style={{ fontSize: '28px', mdFontSize: '32px' }}>Pedidos y Reservaciones</h2>
           <p style={{ color: 'var(--text-secondary)' }}>Gestiona los pedidos y reservas capturados automáticamente por la IA</p>
         </div>
-        <div className="page-header-actions">
-          <div className="glass-card" style={{ padding: '10px 20px', display: 'flex', alignItems: 'center', gap: '10px', boxShadow: 'none' }}>
-            <ShoppingBag className="gradient-text" />
-            <strong>{orders.length} Totales</strong>
+        <div className="page-header-actions" style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '6px' }}>
+            <button
+              type="button"
+              onClick={() => handleDateFilterChange('today')}
+              className={dateFilter === 'today' ? 'btn-primary' : 'btn-secondary'}
+              style={{ padding: '8px 14px', fontSize: '13px' }}
+            >
+              Hoy
+            </button>
+            <button
+              type="button"
+              onClick={() => handleDateFilterChange('all')}
+              className={dateFilter === 'all' ? 'btn-primary' : 'btn-secondary'}
+              style={{ padding: '8px 14px', fontSize: '13px' }}
+            >
+              Histórico ({orders.length})
+            </button>
+          </div>
+          <select
+            className="input-field"
+            style={{ width: 'auto', minWidth: '150px', padding: '8px 12px', fontSize: '13px', height: '38px' }}
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            aria-label="Filtrar pedidos por estado"
+          >
+            <option value="all">Todos los estados</option>
+            <option value="pending">Pendiente</option>
+            <option value="confirmed">Confirmado</option>
+            <option value="preparing">Preparando</option>
+            <option value="ready">Listo</option>
+            <option value="delivered">Entregado</option>
+            <option value="cancelled">Cancelado</option>
+          </select>
+          <div className="glass-card" style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: 'none' }}>
+            <ShoppingBag className="gradient-text" size={18} />
+            <strong>{filteredOrders.length} Mostrados</strong>
           </div>
         </div>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-        {orders.length === 0 ? (
+        {filteredOrders.length === 0 ? (
           <div className="glass-card" style={{ textAlign: 'center', padding: '50px' }}>
-            <p>Aún no se han registrado pedidos en esta sucursal.</p>
+            <p style={{ color: 'var(--text-secondary)' }}>
+              {dateFilter === 'today'
+                ? 'Aún no se han registrado pedidos el día de hoy.'
+                : 'No se encontraron pedidos con los filtros seleccionados.'}
+            </p>
+            {dateFilter === 'today' && orders.length > 0 && (
+              <button
+                type="button"
+                onClick={() => handleDateFilterChange('all')}
+                className="btn-secondary"
+                style={{ marginTop: '15px' }}
+              >
+                Ver los {orders.length} pedidos históricos
+              </button>
+            )}
           </div>
         ) : (
-          orders.map((order) => (
+          filteredOrders.map((order) => (
             <div key={order._id} className="glass-card" style={{ padding: '20px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '20px' }}>
                 {/* Info Cliente y Estado */}

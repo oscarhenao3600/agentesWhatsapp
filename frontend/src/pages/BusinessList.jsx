@@ -4,10 +4,10 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Building2, 
   Plus, 
-  MoreVertical,
   ArrowRight,
   ExternalLink,
-  Trash2
+  Trash2,
+  Pencil
 } from 'lucide-react';
 import axios from 'axios';
 import BusinessModal from '../components/BusinessModal';
@@ -103,21 +103,36 @@ const BusinessList = () => {
                   <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>ID: {biz._id.slice(-6)}</span>
                 </div>
               </div>
-              {user.role === 'admin' ? (
-                <button 
-                  type="button"
-                  onClick={() => handleDeleteBusiness(biz._id, biz.name)}
-                  className="btn-secondary" 
-                  style={{ padding: '8px', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)' }}
-                  title="Eliminar Negocio"
-                  aria-label={`Eliminar negocio ${biz.name}`}
-                >
-                  <Trash2 size={16} />
-                </button>
-              ) : (
-                <button type="button" className="btn-secondary" style={{ padding: '8px' }} aria-label={`Opciones de ${biz.name}`}>
-                  <MoreVertical size={16} />
-                </button>
+              {user?.role === 'admin' && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedBusiness(biz);
+                      setIsModalOpen(true);
+                    }}
+                    className="btn-secondary"
+                    style={{
+                      padding: '8px',
+                      color: 'var(--accent-primary)',
+                      border: '1px solid rgba(99, 102, 241, 0.25)'
+                    }}
+                    title="Editar información y descripción del negocio"
+                    aria-label={`Editar negocio ${biz.name}`}
+                  >
+                    <Pencil size={16} />
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => handleDeleteBusiness(biz._id, biz.name)}
+                    className="btn-secondary" 
+                    style={{ padding: '8px', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)' }}
+                    title="Eliminar Negocio"
+                    aria-label={`Eliminar negocio ${biz.name}`}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
               )}
             </div>
 

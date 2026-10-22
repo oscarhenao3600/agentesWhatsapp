@@ -1,10 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const { 
+  getDashboardStats,
   getCommissionsReport,
   markCommissionsAsPaid
 } = require('../controllers/reportController');
 const { protect, authorize } = require('../middleware/auth');
+
+// Estadísticas generales del Dashboard (Admin y Cliente)
+router.get('/dashboard', protect, getDashboardStats);
 
 // Ambas rutas protegidas, pero markCommissionsAsPaid verifica admin internamente (o podríamos usar el middleware admin)
 // Aquí getCommissionsReport usa 'protect' porque los clientes también pueden verlo (con vista limitada)

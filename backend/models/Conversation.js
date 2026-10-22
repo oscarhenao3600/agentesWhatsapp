@@ -34,6 +34,11 @@ const conversationSchema = new mongoose.Schema({
   lastInteraction: {
     type: Date,
     default: Date.now
+  },
+  commissionStatus: {
+    type: String,
+    enum: ['pending', 'paid'],
+    default: 'pending'
   }
 }, {
   timestamps: true
