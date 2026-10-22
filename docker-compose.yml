@@ -41,6 +41,9 @@ services:
       - PORT=${BACKEND_PORT:-4050}
       - MONGODB_URI=${MONGODB_URI:-mongodb://mongodb:27017/agentes_whatsapp}
       - JWT_SECRET=${JWT_SECRET}
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-oscarhenao}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - ALLOW_PUBLIC_REGISTER=${ALLOW_PUBLIC_REGISTER:-true}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - NODE_ENV=${NODE_ENV:-production}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}

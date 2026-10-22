@@ -1,9 +1,33 @@
 const Branch = require('../models/Branch');
 const BranchAIConfig = require('../models/BranchAIConfig');
+const Business = require('../models/Business');
+
+// Auxiliar para validar que el usuario sea Admin o dueño del negocio
+const validateBusinessAccess = async (user, businessId) => {
+  if (!user) return false;
+  if (user.role === 'admin') return true;
+  const business = await Business.findById(businessId);
+  if (!business) return false;
+  return business.owner.toString() === user._id.toString();
+};
+
+// Auxiliar para validar que el usuario sea Admin o dueño de la sucursal
+const validateBranchAccess = async (user, branchId) => {
+  if (!user) return false;
+  const branch = await Branch.findById(branchId);
+  if (!branch) return false;
+  if (user.role === 'admin') return true;
+  return validateBusinessAccess(user, branch.business);
+};
 
 exports.createBranch = async (req, res) => {
   try {
     const { businessId, name, phone, whatsappNumberId, whatsappVerifyToken, accessToken, basePrompt, businessType } = req.body;
+
+    const hasAccess = await validateBusinessAccess(req.user, businessId);
+    if (!hasAccess) {
+      return res.status(403).json({ message: 'No tienes permisos para crear sucursales en este negocio' });
+    }
 
     const branch = new Branch({
       business: businessId,
@@ -33,6 +57,11 @@ exports.createBranch = async (req, res) => {
 
 exports.getBusinessBranches = async (req, res) => {
   try {
+    const hasAccess = await validateBusinessAccess(req.user, req.params.businessId);
+    if (!hasAccess) {
+      return res.status(403).json({ message: 'No tienes permisos para ver las sucursales de este negocio' });
+    }
+
     const branches = await Branch.find({ business: req.params.businessId });
     res.json(branches);
   } catch (error) {
@@ -42,6 +71,11 @@ exports.getBusinessBranches = async (req, res) => {
 
 exports.getBranchDetails = async (req, res) => {
   try {
+    const hasAccess = await validateBranchAccess(req.user, req.params.id);
+    if (!hasAccess) {
+      return res.status(403).json({ message: 'No tienes permisos para ver esta sucursal' });
+    }
+
     const branch = await Branch.findById(req.params.id);
     const aiConfig = await BranchAIConfig.findOne({ branch: req.params.id });
     res.json({ branch, aiConfig });
@@ -52,6 +86,11 @@ exports.getBranchDetails = async (req, res) => {
 
 exports.updateBranchAI = async (req, res) => {
   try {
+    const hasAccess = await validateBranchAccess(req.user, req.params.id);
+    if (!hasAccess) {
+      return res.status(403).json({ message: 'No tienes permisos para modificar esta sucursal' });
+    }
+
     let aiConfig = await BranchAIConfig.findOne({ branch: req.params.id });
     
     if (!aiConfig) {
@@ -60,7 +99,9 @@ exports.updateBranchAI = async (req, res) => {
     } else {
       // Actualizar campos
       Object.keys(req.body).forEach(key => {
-        aiConfig[key] = req.body[key];
+        if (key !== '_id' && key !== 'branch') {
+          aiConfig[key] = req.body[key];
+        }
       });
     }
 
@@ -79,6 +120,11 @@ exports.updateBranchAI = async (req, res) => {
 exports.testCalendarConfig = async (req, res) => {
   try {
     const branchId = req.params.id;
+    const hasAccess = await validateBranchAccess(req.user, branchId);
+    if (!hasAccess) {
+      return res.status(403).json({ success: false, error: 'No tienes permisos sobre esta sucursal' });
+    }
+
     const { testCalendarConnection } = require('../services/googleCalendarService');
     const aiConfig = await BranchAIConfig.findOne({ branch: branchId });
 

@@ -24,6 +24,9 @@ connectDB().then(async () => {
 
 const app = express();
 
+// Confiar en el proxy inverso (Nginx / Cloudflare Tunnel) para obtener la IP real en rate-limiting
+app.set('trust proxy', 1);
+
 app.get('/ping', (req, res) => res.send('pong'));
 
 // Middlewares de Seguridad

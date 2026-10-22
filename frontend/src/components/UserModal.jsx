@@ -1,8 +1,10 @@
 import { useState, useRef } from 'react';
 import { X, UserPlus, Lock, User } from 'lucide-react';
 import axios from 'axios';
+import { useAuth } from '../context/AuthContext';
 
 const UserModal = ({ isOpen, onClose, onSave }) => {
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     username: '',
     password: '',
@@ -17,8 +19,9 @@ const UserModal = ({ isOpen, onClose, onSave }) => {
     const currentReqId = ++reqIdRef.current;
     setLoading(true);
     try {
-      // Usamos la ruta de registro existente, pero desde la sesión de admin
-      await axios.post('/api/auth/register', formData);
+      // Usamos la ruta de registro existente autenticada con el token de admin
+      const config = user?.token ? { headers: { Authorization: `Bearer ${user.token}` } } : {};
+      await axios.post('/api/auth/register', formData, config);
       if (currentReqId !== reqIdRef.current) return;
       onSave();
       onClose();
