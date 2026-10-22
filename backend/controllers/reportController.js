@@ -47,18 +47,28 @@ exports.getDashboardStats = async (req, res) => {
     }
 
     const businessIds = businesses.map(b => b._id);
-    const branches = await Branch.find({ business: { $in: businessIds } }).lean();
+    const branches = await Branch.find({ business: { $in: businessIds } })
+      .select('_id name phone address isActive gatewayType whatsappConnected business')
+      .lean();
     const branchIds = branches.map(b => b._id);
 
-    // Obtener todas las órdenes y conversaciones de estas sucursales
-    const [orders, conversations] = await Promise.all([
+    // Optimización Raspberry Pi (bajo consumo de RAM):
+    // Excluir textos largos (messages.content, summary, notes) en el escaneo global de métricas
+    const [orders, conversations, topRecentConvs] = await Promise.all([
       Order.find({ branch: { $in: branchIds } })
+        .select('branch customerName customerPhone total status orderType createdAt items.quantity')
         .populate('branch', 'name business')
         .sort({ createdAt: -1 })
         .lean(),
       Conversation.find({ branch: { $in: branchIds } })
+        .select('branch customerNumber customerName emotionalState lastInteraction messages.role messages.timestamp')
+        .sort({ lastInteraction: -1 })
+        .lean(),
+      Conversation.find({ branch: { $in: branchIds } })
+        .select('branch customerNumber customerName emotionalState lastInteraction messages')
         .populate('branch', 'name business')
         .sort({ lastInteraction: -1 })
+        .limit(15)
         .lean()
     ]);
 
@@ -282,7 +292,7 @@ exports.getDashboardStats = async (req, res) => {
       itemsCount: Array.isArray(o.items) ? o.items.reduce((acc, it) => acc + (it.quantity || 1), 0) : 0
     }));
 
-    const recentConversations = conversations.slice(0, 15).map(c => {
+    const recentConversations = topRecentConvs.map(c => {
       const msgs = Array.isArray(c.messages) ? c.messages : [];
       const aiCount = msgs.filter(m => m.role === 'assistant').length;
       const aiTodayCount = msgs.filter(m => m.role === 'assistant' && m.timestamp && new Date(m.timestamp) >= startOfToday).length;
@@ -297,7 +307,7 @@ exports.getDashboardStats = async (req, res) => {
         aiMessagesTotal: aiCount,
         aiMessagesToday: aiTodayCount,
         totalMessages: msgs.length,
-        lastMessagePreview: lastMsg ? lastMsg.content.slice(0, 90) : '',
+        lastMessagePreview: lastMsg && lastMsg.content ? lastMsg.content.slice(0, 90) : '',
         lastMessageRole: lastMsg ? lastMsg.role : '',
         branchId: c.branch?._id,
         branchName: c.branch?.name || 'Sucursal',
@@ -375,8 +385,9 @@ exports.getCommissionsReport = async (req, res) => {
     const branches = await Branch.find(branchQuery).select('_id name phone address business');
     const branchIds = branches.map(b => b._id);
 
-    // Consultar BranchAIConfig para saber si cada sucursal usa su propia API Key o la del sistema
-    const aiConfigs = await BranchAIConfig.find({ branch: { $in: branchIds } });
+    // Consultar BranchAIConfig proyectando solo los campos necesarios (sin cargar basePrompt, menuContent ni credenciales JSON pesadas en RAM)
+    const aiConfigs = await BranchAIConfig.find({ branch: { $in: branchIds } })
+      .select('branch apiKey aiProvider aiModel');
     const envGeminiKey = (process.env.GEMINI_API_KEY || '').trim();
     const branchAiKeyMap = {};
 
@@ -442,10 +453,19 @@ exports.getCommissionsReport = async (req, res) => {
       if (endBound) convMatch.lastInteraction.$lte = endBound;
     }
 
+    // Optimización Raspberry Pi: proyectar únicamente metadatos de mensajes (role y timestamp), evitando cargar el texto completo de los chats en memoria
     const [filteredOrders, closedOrdersForMatching, conversations] = await Promise.all([
-      Order.find(orderMatch).sort({ createdAt: -1 }).lean(),
-      Order.find(closedOrdersQuery).select('branch customerPhone status createdAt').lean(),
-      Conversation.find(convMatch).sort({ lastInteraction: -1 }).lean()
+      Order.find(orderMatch)
+        .select('branch customerName customerPhone orderType status total commissionAmount commissionStatus createdAt')
+        .sort({ createdAt: -1 })
+        .lean(),
+      Order.find(closedOrdersQuery)
+        .select('branch customerPhone status createdAt')
+        .lean(),
+      Conversation.find(convMatch)
+        .select('branch customerNumber customerName lastInteraction updatedAt commissionStatus messages.role messages.timestamp')
+        .sort({ lastInteraction: -1 })
+        .lean()
     ]);
 
     // Conjunto de clientes (por sucursal) que cerraron al menos un pedido/reserva o venta

@@ -17,6 +17,9 @@ const protect = async (req, res, next) => {
       if (!req.user) {
         return res.status(401).json({ message: 'No autorizado, usuario no existe' });
       }
+      if (req.user.active === false) {
+        return res.status(403).json({ message: 'Tu cuenta ha sido desactivada por el administrador' });
+      }
 
       next();
     } catch (error) {

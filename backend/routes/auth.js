@@ -59,11 +59,15 @@ router.post('/login', loginLimiter, async (req, res) => {
       username: { $regex: new RegExp(`^${username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
     });
 
-    if (user && user.active !== false && (await user.matchPassword(password))) {
+    if (user && (await user.matchPassword(password))) {
+      if (user.active === false) {
+        return res.status(403).json({ message: 'Esta cuenta de usuario se encuentra desactivada. Contacta al administrador.' });
+      }
       res.json({
         _id: user._id,
         username: user.username,
         role: user.role,
+        active: user.active,
         token: generateToken(user._id)
       });
     } else {
@@ -141,10 +145,118 @@ router.post('/register', registerLimiter, async (req, res) => {
 // @access  Private/Admin
 router.get('/users', protect, authorize('admin'), async (req, res) => {
   try {
-    const users = await User.find({ role: 'client' }).select('-password');
+    const users = await User.find({ role: 'client' }).select('-password').sort({ createdAt: -1 });
     res.json(users);
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+});
+
+// @desc    Actualizar un usuario (nombre, contraseña opcional, rol, estado activo) (Solo Admin)
+// @route   PUT /api/auth/users/:id
+// @access  Private/Admin
+router.put('/users/:id', protect, authorize('admin'), async (req, res) => {
+  try {
+    const userToUpdate = await User.findById(req.params.id);
+    if (!userToUpdate) {
+      return res.status(404).json({ message: 'Usuario no encontrado' });
+    }
+
+    const { username, password, role, active } = req.body;
+
+    if (username !== undefined) {
+      const trimmedUsername = String(username).trim();
+      if (!trimmedUsername) {
+        return res.status(400).json({ message: 'El nombre de usuario no puede estar vacío' });
+      }
+
+      const duplicate = await User.findOne({
+        _id: { $ne: userToUpdate._id },
+        username: { $regex: new RegExp(`^${trimmedUsername.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
+      });
+
+      if (duplicate) {
+        return res.status(400).json({ message: 'Ese nombre de usuario ya está en uso' });
+      }
+
+      userToUpdate.username = trimmedUsername;
+    }
+
+    if (password !== undefined && String(password).trim() !== '') {
+      if (String(password).length < 6) {
+        return res.status(400).json({ message: 'La nueva contraseña debe tener al menos 6 caracteres' });
+      }
+      userToUpdate.password = String(password);
+    }
+
+    if (role && ['admin', 'client', 'user'].includes(role)) {
+      userToUpdate.role = role;
+    }
+
+    if (typeof active === 'boolean') {
+      userToUpdate.active = active;
+    }
+
+    const saved = await userToUpdate.save();
+    res.json({
+      _id: saved._id,
+      username: saved.username,
+      role: saved.role,
+      active: saved.active,
+      createdAt: saved.createdAt
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message || 'Error al actualizar el usuario' });
+  }
+});
+
+// @desc    Activar o desactivar un usuario (Solo Admin)
+// @route   PATCH /api/auth/users/:id/toggle-active
+// @access  Private/Admin
+router.patch('/users/:id/toggle-active', protect, authorize('admin'), async (req, res) => {
+  try {
+    const userToToggle = await User.findById(req.params.id);
+    if (!userToToggle) {
+      return res.status(404).json({ message: 'Usuario no encontrado' });
+    }
+
+    if (userToToggle._id.toString() === req.user._id.toString()) {
+      return res.status(400).json({ message: 'No puedes desactivar tu propia cuenta de administrador' });
+    }
+
+    userToToggle.active = userToToggle.active === false ? true : false;
+    const saved = await userToToggle.save();
+
+    res.json({
+      _id: saved._id,
+      username: saved.username,
+      role: saved.role,
+      active: saved.active,
+      message: saved.active ? 'Usuario activado correctamente' : 'Usuario desactivado correctamente'
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message || 'Error al cambiar el estado del usuario' });
+  }
+});
+
+// @desc    Eliminar un usuario (Solo Admin)
+// @route   DELETE /api/auth/users/:id
+// @access  Private/Admin
+router.delete('/users/:id', protect, authorize('admin'), async (req, res) => {
+  try {
+    const userToDelete = await User.findById(req.params.id);
+    if (!userToDelete) {
+      return res.status(404).json({ message: 'Usuario no encontrado' });
+    }
+
+    if (userToDelete._id.toString() === req.user._id.toString()) {
+      return res.status(400).json({ message: 'No puedes eliminar tu propia cuenta de administrador' });
+    }
+
+    await User.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Usuario eliminado correctamente' });
+  } catch (error) {
+    res.status(500).json({ message: error.message || 'Error al eliminar el usuario' });
   }
 });
 
