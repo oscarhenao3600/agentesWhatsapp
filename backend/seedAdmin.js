@@ -3,8 +3,8 @@ const mongoose = require('mongoose');
 const User = require('./models/User');
 
 const ensureAdminUser = async ({ resetPassword = false } = {}) => {
-  const adminUsername = process.env.ADMIN_USERNAME || 'oscarhenao';
-  const adminPassword = process.env.ADMIN_PASSWORD || 'oscar3600';
+  const adminUsername = (process.env.ADMIN_USERNAME || 'oscarhenao').trim();
+  const adminPassword = (process.env.ADMIN_PASSWORD || 'oscar3600').trim();
 
   const existingAdmin = await User.findOne({ username: adminUsername });
 
@@ -18,15 +18,18 @@ const ensureAdminUser = async ({ resetPassword = false } = {}) => {
       existingAdmin.active = true;
       updated = true;
     }
-    if (resetPassword) {
+    // Sincronizar contraseña con ADMIN_PASSWORD de .env si difiere de la almacenada
+    const matches = await existingAdmin.matchPassword(adminPassword);
+    if (!matches || resetPassword) {
       existingAdmin.password = adminPassword;
       updated = true;
+      console.log(`🔐 Sincronizando contraseña del administrador '${adminUsername}' con la configurada en .env`);
     }
     if (updated) {
       await existingAdmin.save();
-      console.log(`✅ Usuario administrador '${adminUsername}' actualizado (rol: admin).`);
+      console.log(`✅ Usuario administrador '${adminUsername}' actualizado y sincronizado.`);
     } else {
-      console.log(`ℹ️ El usuario administrador '${adminUsername}' ya existe y está activo.`);
+      console.log(`ℹ️ El usuario administrador '${adminUsername}' ya existe y sus credenciales están sincronizadas.`);
     }
     return existingAdmin;
   }

@@ -8,13 +8,13 @@ const { createRateLimiter } = require('../middleware/rateLimiter');
 // Limitadores de velocidad contra ataques de fuerza bruta y creación masiva de cuentas
 const loginLimiter = createRateLimiter({
   windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 10, // Máximo 10 intentos cada 15 min por IP
+  max: 30, // Permitir hasta 30 intentos antes de bloquear temporalmente
   message: 'Demasiados intentos de inicio de sesión. Por seguridad, espera 15 minutos.'
 });
 
 const registerLimiter = createRateLimiter({
-  windowMs: 60 * 60 * 1000, // 1 hora
-  max: 10,
+  windowMs: 15 * 60 * 1000,
+  max: 30,
   message: 'Demasiadas solicitudes de registro desde esta IP. Intenta más tarde.'
 });
 

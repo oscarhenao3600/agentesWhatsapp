@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, UserPlus, Lock, User, Shield, Save } from 'lucide-react';
+import { X, UserPlus, Lock, User, Shield, Save, Eye, EyeOff } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 
@@ -11,6 +11,7 @@ const UserModal = ({ isOpen, onClose, onSave, editingUser = null }) => {
     role: 'client',
     active: true
   });
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const reqIdRef = useRef(0);
 
@@ -102,14 +103,40 @@ const UserModal = ({ isOpen, onClose, onSave, editingUser = null }) => {
             <label htmlFor="user-modal-password">
               <Lock size={14} /> {editingUser ? 'Nueva Contraseña (Opcional)' : 'Contraseña Inicial'}
             </label>
-            <input 
-              id="user-modal-password"
-              type="password" 
-              placeholder={editingUser ? 'Dejar vacío para conservar la actual...' : '••••••••'}
-              value={formData.password}
-              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-              required={!editingUser}
-            />
+            <div style={{ position: 'relative' }}>
+              <input 
+                id="user-modal-password"
+                type={showPassword ? 'text' : 'password'} 
+                placeholder={editingUser ? 'Dejar vacío para conservar la actual...' : '••••••••'}
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                required={!editingUser}
+                style={{ paddingRight: '40px' }}
+              />
+              <button
+                type="button"
+                onMouseEnter={() => setShowPassword(true)}
+                onMouseLeave={() => setShowPassword(false)}
+                onClick={() => setShowPassword((prev) => !prev)}
+                title="Pasa el cursor o haz clic para ver la contraseña"
+                aria-label="Ver contraseña"
+                style={{
+                  position: 'absolute',
+                  right: '12px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: showPassword ? 'var(--primary-color, #25D366)' : 'var(--text-secondary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: 0
+                }}
+              >
+                {showPassword ? <Eye size={18} /> : <EyeOff size={18} />}
+              </button>
+            </div>
             <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '5px' }}>
               {editingUser
                 ? 'Solo escribe aquí si deseas cambiarle la contraseña al usuario (mínimo 6 caracteres).'

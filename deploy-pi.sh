@@ -41,6 +41,22 @@ if command -v sysctl &> /dev/null; then
     fi
 fi
 
+# 2.1 Habilitar cgroups de memoria en el kernel si no están activos (para que Docker pueda limitar la RAM)
+CMDLINE_FILE=""
+if [ -f /boot/firmware/cmdline.txt ]; then
+    CMDLINE_FILE="/boot/firmware/cmdline.txt"
+elif [ -f /boot/cmdline.txt ]; then
+    CMDLINE_FILE="/boot/cmdline.txt"
+fi
+
+if [ -n "$CMDLINE_FILE" ]; then
+    if ! grep -q "cgroup_enable=memory" "$CMDLINE_FILE"; then
+        echo "🔧 Habilitando soporte de cgroups para límites de memoria en Docker ($CMDLINE_FILE)..."
+        sudo sed -i '$ s/$/ cgroup_enable=cpuset cgroup_enable=memory cgroup_memory=1/' "$CMDLINE_FILE"
+        echo "ℹ️ Se habilitó cgroups en el kernel. Aplica tras reiniciar la Pi con: sudo reboot"
+    fi
+fi
+
 # Verificar memoria Swap
 SWAP_TOTAL=$(free -m | awk '/Swap:/ {print $2}')
 if [ -n "$SWAP_TOTAL" ] && [ "$SWAP_TOTAL" -lt 1024 ]; then
