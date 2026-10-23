@@ -17,6 +17,9 @@ RUN npm run build
 # Etapa de producción con Nginx
 FROM nginx:alpine as production-stage
 
+# Actualizar paquetes de Alpine en la imagen de produccion
+RUN apk update && apk upgrade --no-cache
+
 # Copiar configuración de Nginx
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 

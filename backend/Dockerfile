@@ -4,10 +4,11 @@ FROM node:20-alpine
 # Establecer el directorio de trabajo
 WORKDIR /app
 
-# Instalar solo certificados y zona horaria (sin Chromium para proteger RAM y microSD en Raspberry Pi)
-RUN apk add --no-cache \
-    ca-certificates \
-    tzdata
+# Actualizar paquetes de Alpine e instalar certificados y zona horaria
+RUN apk update && apk upgrade --no-cache && \
+    apk add --no-cache \
+      ca-certificates \
+      tzdata
 
 # Configurar zona horaria de Colombia, motor Baileys exclusivo y límite de heap V8 para Raspberry Pi 1GB
 ENV TZ=America/Bogota \

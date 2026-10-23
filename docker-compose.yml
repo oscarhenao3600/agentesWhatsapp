@@ -8,25 +8,37 @@ services:
   # ===================================================================
   # Base de Datos MongoDB
   # Compatible con Raspberry Pi 3B+ (ARMv8 Cortex-A53 / aarch64)
-  # mongo:4.4.18 evita el error de 'Illegal instruction (core dumped)' de MongoDB 5+
+  # mongo:4.4.29 incluye todos los parches acumulativos de seguridad de la rama 4.4
+  # y evita el error de 'Illegal instruction (core dumped)' de MongoDB 5+
   # ===================================================================
   mongodb:
-    image: mongo:4.4.18
+    image: mongo:4.4.29
     container_name: agentes_whatsapp_db
     # Limita la memoria caché de WiredTiger a 150MB (0.15 GB) para proteger el 1GB de RAM de la Raspberry Pi
     command: mongod --wiredTigerCacheSizeGB 0.15
+    # SEGURIDAD CRÍTICA: Se enlaza por defecto a 127.0.0.1 para evitar exposición abierta
+    # no autenticada en la red local (LAN) o internet.
     ports:
-      - "${MONGO_EXTERNAL_PORT:-48160}:27017"
+      - "${MONGO_BIND_IP:-127.0.0.1}:${MONGO_EXTERNAL_PORT:-48160}:27017"
     volumes:
       - agentes_whatsapp_mongodb_data:/data/db
     networks:
       - agentes_whatsapp_net
     restart: unless-stopped
     logging: *default-logging
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "mongo --quiet --eval \"db.adminCommand('ping').ok\" | grep 1 || exit 1"]
+      interval: 25s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     deploy:
       resources:
         limits:
           memory: 256M
+          pids: 100
 
   # ===================================================================
   # Backend (Node.js + Baileys WebSockets / Gemini AI)
@@ -35,15 +47,17 @@ services:
     build:
       context: ./backend
     container_name: agentes_whatsapp_backend
+    # SEGURIDAD: Enlazado por defecto a 127.0.0.1 para obligar a que todo el tráfico
+    # público pase por Nginx (reverse proxy) y se apliquen cabeceras y límites de seguridad
     ports:
-      - "${BACKEND_PORT:-4050}:${BACKEND_PORT:-4050}"
+      - "${BACKEND_BIND_IP:-127.0.0.1}:${BACKEND_PORT:-4050}:${BACKEND_PORT:-4050}"
     environment:
       - PORT=${BACKEND_PORT:-4050}
       - MONGODB_URI=${MONGODB_URI:-mongodb://mongodb:27017/agentes_whatsapp}
       - JWT_SECRET=${JWT_SECRET}
       - ADMIN_USERNAME=${ADMIN_USERNAME:-oscarhenao}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
-      - ALLOW_PUBLIC_REGISTER=${ALLOW_PUBLIC_REGISTER:-true}
+      - ALLOW_PUBLIC_REGISTER=${ALLOW_PUBLIC_REGISTER:-false}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - NODE_ENV=${NODE_ENV:-production}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
@@ -64,6 +78,8 @@ services:
       - agentes_whatsapp_net
     restart: unless-stopped
     logging: *default-logging
+    security_opt:
+      - no-new-privileges:true
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:$${PORT:-4050}/ping >/dev/null 2>&1 || exit 1"]
       interval: 30s
@@ -75,6 +91,7 @@ services:
       resources:
         limits:
           memory: 350M
+          pids: 150
 
   # ===================================================================
   # Frontend (React + Nginx)
@@ -84,17 +101,20 @@ services:
       context: ./frontend
     container_name: agentes_whatsapp_frontend
     ports:
-      - "${FRONTEND_PORT:-8090}:80"
+      - "${FRONTEND_BIND_IP:-0.0.0.0}:${FRONTEND_PORT:-8090}:80"
     depends_on:
       - backend
     networks:
       - agentes_whatsapp_net
     restart: unless-stopped
     logging: *default-logging
+    security_opt:
+      - no-new-privileges:true
     deploy:
       resources:
         limits:
           memory: 256M
+          pids: 80
 
 volumes:
   agentes_whatsapp_mongodb_data:
