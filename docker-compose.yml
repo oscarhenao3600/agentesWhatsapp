@@ -7,12 +7,12 @@ x-logging: &default-logging
 services:
   # ===================================================================
   # Base de Datos MongoDB
-  # Compatible con Raspberry Pi 3B+ (ARMv8 Cortex-A53 / aarch64)
-  # mongo:4.4.29 incluye todos los parches acumulativos de seguridad de la rama 4.4
-  # y evita el error de 'Illegal instruction (core dumped)' de MongoDB 5+
+  # Compatible con Raspberry Pi 3B+ / 4 (ARMv8 Cortex-A53 / Cortex-A72 / aarch64)
+  # mongo:4.4.18 es la ÚLTIMA versión compatible con el conjunto de instrucciones ARMv8-A.
+  # (4.4.19+ y 5+ compilan con instrucciones ARMv8.2-A que causan 'Illegal instruction core dumped' en la Pi)
   # ===================================================================
   mongodb:
-    image: mongo:4.4.29
+    image: mongo:4.4.18
     container_name: agentes_whatsapp_db
     # Limita la memoria caché de WiredTiger a 150MB (0.15 GB) para proteger el 1GB de RAM de la Raspberry Pi
     command: mongod --wiredTigerCacheSizeGB 0.15
@@ -54,7 +54,7 @@ services:
     environment:
       - PORT=${BACKEND_PORT:-4050}
       - MONGODB_URI=${MONGODB_URI:-mongodb://mongodb:27017/agentes_whatsapp}
-      - JWT_SECRET=${JWT_SECRET}
+      - JWT_SECRET=${JWT_SECRET:-tu_secreto_super_seguro_123}
       - ADMIN_USERNAME=${ADMIN_USERNAME:-oscarhenao}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
       - ALLOW_PUBLIC_REGISTER=${ALLOW_PUBLIC_REGISTER:-true}

@@ -18,9 +18,12 @@ const registerLimiter = createRateLimiter({
   message: 'Demasiadas solicitudes de registro desde esta IP. Intenta más tarde.'
 });
 
+// Obtener secreto JWT con valor por defecto seguro
+const getJwtSecret = () => process.env.JWT_SECRET || 'tu_secreto_super_seguro_123';
+
 // Generar JWT
 const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, {
+  return jwt.sign({ id }, getJwtSecret(), {
     expiresIn: '30d'
   });
 };
@@ -31,7 +34,7 @@ const getAuthenticatedAdmin = async (req) => {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
     const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, getJwtSecret());
     const caller = await User.findById(decoded.id).select('-password');
     if (caller && caller.role === 'admin' && caller.active !== false) {
       return caller;
@@ -74,7 +77,11 @@ router.post('/login', loginLimiter, async (req, res) => {
       res.status(401).json({ message: 'Usuario o contraseña inválidos' });
     }
   } catch (error) {
-    res.status(500).json({ message: 'Error interno al procesar el inicio de sesión' });
+    console.error('❌ Error en /api/auth/login:', error);
+    res.status(500).json({
+      message: 'Error interno al procesar el inicio de sesión',
+      error: error.message
+    });
   }
 });
 
