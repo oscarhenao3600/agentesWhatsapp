@@ -44,17 +44,17 @@ const BranchModal = ({ isOpen, onClose, businessId, user, onSave }) => {
 
   return (
     <div className="modal-overlay">
-      <div className="modal-content glass-card" style={{ maxWidth: '600px', width: '90%' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
-          <h2 style={{ fontSize: '24px' }}>Nueva Sucursal</h2>
-          <button type="button" onClick={onClose} aria-label="Cerrar modal" className="btn-secondary" style={{ padding: '5px' }}>
+      <div className="modal-content glass-card" style={{ maxWidth: '600px', width: '95%' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <h2 style={{ fontSize: '22px' }}>Nueva Sucursal</h2>
+          <button type="button" onClick={onClose} aria-label="Cerrar modal" className="btn-secondary" style={{ padding: '6px' }}>
             <X size={20} />
           </button>
         </div>
 
         <form onSubmit={handleSubmit}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-            <div style={{ marginBottom: '15px', gridColumn: '1 / -1' }}>
+          <div className="branch-modal-grid">
+            <div className="full-span">
               <label htmlFor="branch-name" style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>Nombre de la Sucursal</label>
               <input 
                 id="branch-name"
@@ -67,7 +67,7 @@ const BranchModal = ({ isOpen, onClose, businessId, user, onSave }) => {
               />
             </div>
 
-            <div style={{ marginBottom: '15px', gridColumn: '1 / -1' }}>
+            <div className="full-span">
               <label htmlFor="branch-type" style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>Categoría / Tipo de Negocio</label>
               <select 
                 id="branch-type"
@@ -83,7 +83,7 @@ const BranchModal = ({ isOpen, onClose, businessId, user, onSave }) => {
               </select>
             </div>
 
-            <div style={{ marginBottom: '15px' }}>
+            <div>
               <label htmlFor="branch-phone" style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>Teléfono de Contacto</label>
               <input 
                 id="branch-phone"
@@ -96,7 +96,7 @@ const BranchModal = ({ isOpen, onClose, businessId, user, onSave }) => {
               />
             </div>
 
-            <div style={{ marginBottom: '15px' }}>
+            <div>
               <label htmlFor="branch-whatsapp-id" style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>ID Número WhatsApp (Meta)</label>
               <input 
                 id="branch-whatsapp-id"
@@ -109,7 +109,7 @@ const BranchModal = ({ isOpen, onClose, businessId, user, onSave }) => {
               />
             </div>
 
-            <div style={{ marginBottom: '15px' }}>
+            <div>
               <label htmlFor="branch-verify-token" style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>Token Verificación Webhook</label>
               <input 
                 id="branch-verify-token"
@@ -122,7 +122,7 @@ const BranchModal = ({ isOpen, onClose, businessId, user, onSave }) => {
               />
             </div>
 
-            <div style={{ marginBottom: '15px' }}>
+            <div>
               <label htmlFor="branch-access-token" style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>Token de Acceso Meta</label>
               <input 
                 id="branch-access-token"
@@ -135,7 +135,7 @@ const BranchModal = ({ isOpen, onClose, businessId, user, onSave }) => {
               />
             </div>
 
-            <div style={{ marginBottom: '15px', gridColumn: '1 / -1' }}>
+            <div className="full-span">
               <label htmlFor="branch-base-prompt" style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>Prompt Inicial de la IA</label>
               <textarea 
                 id="branch-base-prompt"
@@ -148,8 +148,8 @@ const BranchModal = ({ isOpen, onClose, businessId, user, onSave }) => {
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
-            <button type="button" onClick={onClose} className="btn-secondary" style={{ flex: 1 }}>Cancelar</button>
+          <div className="modal-actions-row">
+            <button type="button" onClick={onClose} className="btn-secondary" style={{ flex: 1, justifyContent: 'center' }}>Cancelar</button>
             <button type="submit" className="btn-primary" disabled={loading} style={{ flex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
               <Zap size={18} /> {loading ? 'Creando...' : 'Crear Sucursal'}
             </button>

@@ -119,11 +119,11 @@ const UsersList = () => {
       </header>
 
       <div className="glass-card" style={{ padding: '0px', overflow: 'visible' }}>
-        <div style={{ padding: '20px', borderBottom: '1px solid var(--border-color)', display: 'flex', gap: '15px', alignItems: 'center' }}>
+        <div className="users-search-bar" style={{ padding: '20px', borderBottom: '1px solid var(--border-color)', display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>
           <label htmlFor="users-search" style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
             Buscar usuario
           </label>
-          <div style={{ position: 'relative', flex: 1 }}>
+          <div style={{ position: 'relative', flex: '1 1 220px' }}>
             <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
             <input 
               id="users-search"
@@ -137,8 +137,8 @@ const UsersList = () => {
           </div>
         </div>
 
-        <div className="responsive-table-container" style={{ overflow: 'visible' }}>
-          <table className="responsive-table">
+        <div className="responsive-table-container users-table-container">
+          <table className="responsive-table users-responsive-table">
             <thead>
               <tr style={{ background: 'var(--table-header-bg)', color: 'var(--text-secondary)', fontSize: '13px' }}>
                 <th style={{ padding: '15px 24px' }}>USUARIO</th>
@@ -163,15 +163,15 @@ const UsersList = () => {
                       opacity: isActive ? 1 : 0.65
                     }}
                   >
-                    <td style={{ padding: '15px 24px' }}>
+                    <td data-label="Usuario" style={{ padding: '15px 24px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <div style={{ width: '35px', height: '35px', borderRadius: '50%', background: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <div style={{ width: '35px', height: '35px', borderRadius: '50%', background: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                           <User size={18} color={isActive ? 'var(--accent-primary)' : 'var(--text-secondary)'} />
                         </div>
-                        <span style={{ fontWeight: '600' }}>{u.username}</span>
+                        <span style={{ fontWeight: '600', wordBreak: 'break-word' }}>{u.username}</span>
                       </div>
                     </td>
-                    <td style={{ padding: '15px 24px' }}>
+                    <td data-label="Rol" style={{ padding: '15px 24px' }}>
                       <span style={{ 
                         display: 'inline-flex', 
                         alignItems: 'center', 
@@ -187,7 +187,7 @@ const UsersList = () => {
                         {u.role.toUpperCase()}
                       </span>
                     </td>
-                    <td style={{ padding: '15px 24px' }}>
+                    <td data-label="Estado" style={{ padding: '15px 24px' }}>
                       <span style={{
                         display: 'inline-flex',
                         alignItems: 'center',
@@ -203,13 +203,13 @@ const UsersList = () => {
                         {isActive ? 'ACTIVO' : 'INACTIVO'}
                       </span>
                     </td>
-                    <td style={{ padding: '15px 24px', fontSize: '12px', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
+                    <td data-label="ID" style={{ padding: '15px 24px', fontSize: '12px', color: 'var(--text-secondary)', fontFamily: 'monospace', wordBreak: 'break-all' }}>
                       {u._id}
                     </td>
-                    <td style={{ padding: '15px 24px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                    <td data-label="Fecha Creación" style={{ padding: '15px 24px', fontSize: '13px', color: 'var(--text-secondary)' }}>
                       {new Date(u.createdAt || Date.now()).toLocaleDateString()}
                     </td>
-                    <td style={{ padding: '15px 24px', textAlign: 'right', position: 'relative' }}>
+                    <td data-label="Acciones" style={{ padding: '15px 24px', textAlign: 'right', position: 'relative' }}>
                       <button
                         type="button"
                         className="btn-secondary"

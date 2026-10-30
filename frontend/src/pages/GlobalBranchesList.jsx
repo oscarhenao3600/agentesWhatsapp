@@ -54,25 +54,25 @@ const GlobalBranchesList = () => {
 
       <div className="responsive-grid">
         {branches.map(branch => (
-          <div key={branch._id} className="glass-card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
-              <div>
-                <h3 style={{ fontSize: '18px', marginBottom: '4px' }}>{branch.name}</h3>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--text-secondary)' }}>
-                  <Building size={12} /> {branch.business?.name}
+          <div key={branch._id} className="glass-card" style={{ minWidth: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', marginBottom: '20px' }}>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <h3 style={{ fontSize: '18px', marginBottom: '4px', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{branch.name}</h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--text-secondary)', wordBreak: 'break-word' }}>
+                  <Building size={12} style={{ flexShrink: 0 }} /> {branch.business?.name}
                 </div>
               </div>
-              <span className={`badge ${branch.isActive ? 'badge-success' : 'badge-danger'}`}>
+              <span className={`badge ${branch.isActive ? 'badge-success' : 'badge-danger'}`} style={{ flexShrink: 0 }}>
                 {branch.isActive ? 'Activa' : 'Inactiva'}
               </span>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '25px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: 'var(--text-secondary)' }}>
-                <Phone size={14} /> {branch.phone}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: 'var(--text-secondary)', wordBreak: 'break-all' }}>
+                <Phone size={14} style={{ flexShrink: 0 }} /> {branch.phone}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: 'var(--accent-primary)', fontWeight: '600' }}>
-                <Zap size={14} /> Meta ID: {branch.whatsappNumberId}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: 'var(--accent-primary)', fontWeight: '600', wordBreak: 'break-all' }}>
+                <Zap size={14} style={{ flexShrink: 0 }} /> Meta ID: {branch.whatsappNumberId}
               </div>
             </div>
 

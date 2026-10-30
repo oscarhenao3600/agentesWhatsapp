@@ -105,30 +105,31 @@ const BranchManagement = () => {
           </div>
         ) : (
           branches.map((branch) => (
-            <div key={branch._id} className="glass-card">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
-                <h3 style={{ fontSize: '20px' }}>{branch.name}</h3>
+            <div key={branch._id} className="glass-card" style={{ minWidth: 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', marginBottom: '20px' }}>
+                <h3 style={{ fontSize: '20px', minWidth: 0, flex: 1, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{branch.name}</h3>
                 <span style={{ 
                   background: branch.isActive ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)', 
                   color: branch.isActive ? '#22c55e' : '#ef4444',
                   padding: '4px 8px',
                   borderRadius: '6px',
                   fontSize: '12px',
-                  fontWeight: '600'
+                  fontWeight: '600',
+                  flexShrink: 0
                 }}>
                   {branch.isActive ? 'Activa' : 'Inactiva'}
                 </span>
               </div>
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '25px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-secondary)', fontSize: '14px' }}>
-                  <MapPin size={16} /> {branch.address?.city || 'Sin dirección'}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-secondary)', fontSize: '14px', wordBreak: 'break-word' }}>
+                  <MapPin size={16} style={{ flexShrink: 0 }} /> {branch.address?.city || 'Sin dirección'}
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-secondary)', fontSize: '14px' }}>
-                  <Phone size={16} /> {branch.phone}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-secondary)', fontSize: '14px', wordBreak: 'break-all' }}>
+                  <Phone size={16} style={{ flexShrink: 0 }} /> {branch.phone}
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--accent-primary)', fontSize: '14px', fontWeight: '600' }}>
-                  <Zap size={16} /> ID Meta: {branch.whatsappNumberId}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--accent-primary)', fontSize: '14px', fontWeight: '600', wordBreak: 'break-all' }}>
+                  <Zap size={16} style={{ flexShrink: 0 }} /> ID Meta: {branch.whatsappNumberId}
                 </div>
               </div>
 

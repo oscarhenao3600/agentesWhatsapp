@@ -28,7 +28,7 @@ const copFormatter = new Intl.NumberFormat('es-CO', {
 const formatCurrency = (value) => copFormatter.format(value || 0);
 
 const CommissionFilters = ({ filters, businesses, branches, onFilterChange }) => (
-  <div className="glass-card" style={{ marginBottom: '30px', display: 'flex', gap: '20px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+  <div className="glass-card commission-filters-grid">
     <div>
       <label htmlFor="comm-filter-business" style={{ display: 'block', fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '6px' }}>Negocio</label>
       <div style={{ position: 'relative' }}>
@@ -37,7 +37,7 @@ const CommissionFilters = ({ filters, businesses, branches, onFilterChange }) =>
           id="comm-filter-business"
           name="businessId" 
           className="input-field" 
-          style={{ paddingLeft: '35px', minWidth: '170px' }}
+          style={{ paddingLeft: '35px' }}
           value={filters.businessId}
           onChange={onFilterChange}
         >
@@ -57,7 +57,7 @@ const CommissionFilters = ({ filters, businesses, branches, onFilterChange }) =>
           id="comm-filter-branch"
           name="branchId" 
           className="input-field" 
-          style={{ paddingLeft: '35px', minWidth: '170px' }}
+          style={{ paddingLeft: '35px' }}
           value={filters.branchId}
           onChange={onFilterChange}
           disabled={!filters.businessId}
@@ -78,7 +78,7 @@ const CommissionFilters = ({ filters, businesses, branches, onFilterChange }) =>
           id="comm-filter-status"
           name="status" 
           className="input-field" 
-          style={{ paddingLeft: '35px', minWidth: '170px' }}
+          style={{ paddingLeft: '35px' }}
           value={filters.status}
           onChange={onFilterChange}
         >
@@ -185,13 +185,14 @@ const BillingStatementModal = ({ isOpen, onClose, statementData, filters }) => {
       >
         {/* Top bar (no-print) */}
         <div
-          className="no-print"
+          className="no-print billing-modal-topbar"
           style={{
             padding: '18px 24px',
             borderBottom: '1px solid var(--border-color)',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
+            flexWrap: 'wrap',
             gap: '12px'
           }}
         >
@@ -201,7 +202,7 @@ const BillingStatementModal = ({ isOpen, onClose, statementData, filters }) => {
               Vista Previa de Cuenta de Cobro
             </h2>
           </div>
-          <div style={{ display: 'flex', gap: '10px' }}>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
             <button type="button" onClick={handlePrint} className="btn-primary" style={{ padding: '8px 16px', fontSize: '13px' }}>
               <Printer size={16} /> Imprimir / Guardar PDF
             </button>
@@ -212,7 +213,7 @@ const BillingStatementModal = ({ isOpen, onClose, statementData, filters }) => {
         </div>
 
         {/* Printable Document Content */}
-        <div style={{ padding: '28px', overflowY: 'auto', flex: 1 }}>
+        <div className="billing-modal-body" style={{ padding: '28px', overflowY: 'auto', flex: 1 }}>
           {/* Encabezado Cuenta de Cobro */}
           <div
             style={{

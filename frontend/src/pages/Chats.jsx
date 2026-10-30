@@ -38,7 +38,7 @@ const ChatsSidebarHeader = ({
   onDeleteSelected,
   isDeleting
 }) => (
-  <div className="sidebar-header">
+  <div className="chats-sidebar-header">
     <div className="sidebar-header-top">
       <h2>Mensajes</h2>
       {conversationsCount > 0 && (
@@ -67,14 +67,15 @@ const ChatsSidebarHeader = ({
       )}
     </div>
     
-    <div style={{ marginBottom: '15px' }}>
-      <label htmlFor="chats-branch-select" style={{ display: 'block', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '5px' }}>Sucursal</label>
+    <div className="chats-branch-selector">
+      <label htmlFor="chats-branch-select" className="chats-field-label">
+        Negocio / Sucursal
+      </label>
       <select
         id="chats-branch-select"
-        className="input-field"
+        className="input-field chats-branch-select"
         value={selectedBranchId}
         onChange={onBranchChange}
-        style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', height: '42px', padding: '0 10px' }}
       >
         <option value="">Selecciona una sucursal</option>
         {branches.map(b => (
@@ -86,25 +87,24 @@ const ChatsSidebarHeader = ({
     </div>
 
     <div className="search-box">
-      <label htmlFor="chats-search-input" style={{ display: 'flex', alignItems: 'center', margin: 0 }}>
-        <Search size={18} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
-        <span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0,0,0,0)' }}>Buscar conversación</span>
+      <label htmlFor="chats-search-input" className="search-box-icon-label">
+        <Search size={18} className="search-box-icon" />
+        <span className="sr-only">Buscar conversación</span>
       </label>
       <input 
         id="chats-search-input"
         type="text" 
-        className="input-field" 
-        placeholder="Ej: cliente o mensaje..." 
+        className="search-box-input" 
+        placeholder="Buscar cliente, teléfono o mensaje..." 
         value={searchTerm}
         onChange={(e) => onSearchChange(e.target.value)}
-        style={{ border: 'none', background: 'none', padding: '0 5px' }} 
       />
       {searchTerm && (
         <button 
           type="button"
           onClick={() => onSearchChange('')} 
           aria-label="Limpiar búsqueda"
-          style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: 0, display: 'flex' }}
+          className="search-box-clear"
           title="Limpiar búsqueda"
         >
           <X size={16} />
@@ -262,10 +262,10 @@ const ActiveChatView = ({ selectedChat, onBack, onDeleteSingle, message, onMessa
         >
           <ArrowLeft size={20} />
         </button>
-        <div className="avatar">
+        <div className="avatar" style={{ flexShrink: 0 }}>
           <User size={24} />
         </div>
-        <div>
+        <div className="header-title-wrap">
           <h3>{selectedChat.customerName || selectedChat.customerNumber}</h3>
           <span className="status">IA Activa (Monitoreando)</span>
         </div>
@@ -297,17 +297,16 @@ const ActiveChatView = ({ selectedChat, onBack, onDeleteSingle, message, onMessa
     </div>
 
     <form onSubmit={onSendManual} className="chat-input-area">
-      <button type="button" className="icon-btn" aria-label="Adjuntar"><Paperclip size={20} /></button>
-      <button type="button" className="icon-btn" aria-label="Emojis"><Smile size={20} /></button>
+      <button type="button" className="icon-btn chat-aux-btn" aria-label="Adjuntar"><Paperclip size={20} /></button>
+      <button type="button" className="icon-btn chat-aux-btn" aria-label="Emojis"><Smile size={20} /></button>
       <div className="input-wrapper">
-        <label htmlFor="chat-manual-message-input" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0,0,0,0)' }}>
+        <label htmlFor="chat-manual-message-input" className="sr-only">
           Mensaje manual
         </label>
         <input 
           id="chat-manual-message-input"
           type="text" 
-          className="input-field"
-          style={{ border: 'none', background: 'none', padding: 0 }}
+          className="chat-manual-input"
           value={message}
           onChange={(e) => onMessageChange(e.target.value)}
           placeholder="Escribe un mensaje de intervención manual..." 

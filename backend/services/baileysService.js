@@ -93,17 +93,18 @@ const QR_TIMEOUT_MS = 60000; // 1 minuto por código QR
  * Inicializa la sesión de WhatsApp mediante Baileys (WebSockets ligeros, sin Chromium)
  * @param {string} branchId
  * @param {number} initialQrCount
+ * @param {boolean} forceNew - Si es true, cierra cualquier socket previo y limpia credenciales parciales para forzar un nuevo QR
  * @returns {Promise<Object>} Estado inicial de la sesión
  */
-const initSession = async (branchId, initialQrCount = 0) => {
+const initSession = async (branchId, initialQrCount = 0, forceNew = false) => {
   const idStr = branchId.toString();
   let session = sessions.get(idStr);
 
-  if (session && session.status === 'connected') {
+  if (session && session.status === 'connected' && !forceNew) {
     return { status: 'connected', qrImage: null, connectedPhone: session.connectedPhone, gatewayType: 'baileys' };
   }
 
-  if (session && session.status === 'qr_ready' && session.qrImage && initialQrCount === 0) {
+  if (!forceNew && session && session.status === 'qr_ready' && session.qrImage && initialQrCount === 0) {
     return { status: 'qr_ready', qrImage: session.qrImage, connectedPhone: '', gatewayType: 'baileys' };
   }
 
@@ -118,9 +119,23 @@ const initSession = async (branchId, initialQrCount = 0) => {
         session.sock.end(undefined);
       } catch (e) {}
     }
+    sessions.delete(idStr);
   }
 
-  console.log(`[Baileys] Inicializando sesión ligera (sin Chromium) para sucursal: ${idStr}`);
+  const sessionDir = path.join(baileysAuthRoot, `session-branch_${idStr}`);
+
+  // Si se solicita forzar un nuevo QR, limpiar credenciales previas no vinculadas para garantizar generación inmediata de QR
+  if (forceNew) {
+    try {
+      if (fs.existsSync(sessionDir)) {
+        fs.rmSync(sessionDir, { recursive: true, force: true });
+      }
+    } catch (cleanErr) {
+      console.warn(`[Baileys] No se pudo limpiar directorio de sesión al forzar nuevo QR (${idStr}):`, cleanErr.message);
+    }
+  }
+
+  console.log(`[Baileys] Inicializando sesión ligera (sin Chromium) para sucursal: ${idStr}${forceNew ? ' (Nuevo QR forzado)' : ''}`);
 
   session = {
     sock: null,
@@ -158,7 +173,6 @@ const initSession = async (branchId, initialQrCount = 0) => {
     }, 15000);
   };
 
-  const sessionDir = path.join(baileysAuthRoot, `session-branch_${idStr}`);
   if (!fs.existsSync(sessionDir)) {
     fs.mkdirSync(sessionDir, { recursive: true });
   }

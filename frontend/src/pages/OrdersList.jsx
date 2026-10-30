@@ -201,8 +201,8 @@ const OrdersList = () => {
             <div key={order._id} className="glass-card" style={{ padding: '20px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '20px' }}>
                 {/* Info Cliente y Estado */}
-                <div style={{ flex: '1', minWidth: '250px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px' }}>
+                <div style={{ flex: '1', minWidth: 'min(100%, 240px)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '15px' }}>
                     <div style={{ 
                       background: getStatusColor(order.status) + '22', 
                       color: getStatusColor(order.status),
@@ -322,7 +322,7 @@ const OrdersList = () => {
                 </div>
 
                 {/* Acciones */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', justifyContent: 'center', minWidth: '150px' }}>
+                <div className="order-actions-col" style={{ display: 'flex', flexDirection: 'column', gap: '10px', justifyContent: 'center', minWidth: '150px' }}>
                   <select 
                     aria-label={`Cambiar estado del pedido de ${order.customerName || order.customerPhone}`}
                     className="input-field" 

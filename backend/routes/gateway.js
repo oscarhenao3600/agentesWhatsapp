@@ -46,18 +46,20 @@ router.post('/:branchId/qr', protect, async (req, res) => {
       await aiConfig.save();
     }
 
+    const forceNew = Boolean(req.body?.forceNew);
+
     let sessionState;
     if (selectedGateway === 'whatsapp_web' && allowChromium) {
       if (baileysService.hasActiveSession(branchId)) {
         await baileysService.disconnectSession(branchId, false);
       }
-      sessionState = await whatsappWebService.initSession(branchId);
+      sessionState = await whatsappWebService.initSession(branchId, forceNew);
     } else {
       // Por defecto: Baileys (WebSockets ligeros, ~30MB RAM, sin Chromium)
       if (whatsappWebService.hasActiveSession(branchId)) {
         await whatsappWebService.disconnectSession(branchId, false);
       }
-      sessionState = await baileysService.initSession(branchId);
+      sessionState = await baileysService.initSession(branchId, 0, forceNew);
     }
 
     res.json(sessionState);

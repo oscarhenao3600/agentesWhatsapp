@@ -44,23 +44,23 @@ const hasActiveSession = (branchId) => {
  * @param {string} branchId 
  * @returns {Promise<Object>} Estado de la sesión
  */
-const initSession = async (branchId) => {
+const initSession = async (branchId, forceNew = false) => {
   if (process.env.ALLOW_CHROMIUM !== 'true') {
     console.warn(`[WhatsAppWeb] Chromium bloqueado para proteger memoria. Redirigiendo sucursal ${branchId} a Baileys.`);
     const baileysService = require('./baileysService');
-    return baileysService.initSession(branchId);
+    return baileysService.initSession(branchId, 0, forceNew);
   }
   const { Client, LocalAuth } = require('whatsapp-web.js');
   const idStr = branchId.toString();
   let session = sessions.get(idStr);
 
   // Si ya está conectada, devolver el estado
-  if (session && session.status === 'connected') {
+  if (session && session.status === 'connected' && !forceNew) {
     return { status: 'connected', qrImage: null, connectedPhone: session.connectedPhone, gatewayType: 'whatsapp_web' };
   }
 
-  // Si ya está generando QR o esperando escaneo, devolver el estado actual
-  if (session && session.status === 'qr_ready') {
+  // Si ya está generando QR o esperando escaneo, devolver el estado actual (salvo que se fuerce nuevo QR)
+  if (!forceNew && session && session.status === 'qr_ready') {
     return { status: 'qr_ready', qrImage: session.qrImage, connectedPhone: '', gatewayType: 'whatsapp_web' };
   }
 

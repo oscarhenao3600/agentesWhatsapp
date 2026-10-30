@@ -147,7 +147,7 @@ const ProviderConnectionCard = ({ config, setConfig }) => (
   </div>
 );
 
-const QrGatewayContent = ({ isBaileys, whatsappConnected, whatsappNumber, qrState, onConnectWhatsApp }) => {
+const QrGatewayContent = ({ isBaileys, whatsappConnected, whatsappNumber, qrState }) => {
   if (whatsappConnected) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '10px 0' }}>
@@ -177,7 +177,7 @@ const QrGatewayContent = ({ isBaileys, whatsappConnected, whatsappNumber, qrStat
           <RefreshCw size={24} className="animate-spin" style={{ animation: 'spin 1.5s linear infinite', color: 'var(--accent-primary)' }} />
           <small style={{ marginTop: '10px', color: 'var(--text-secondary)' }}>
             {isBaileys
-              ? 'Iniciando socket ligero Baileys (sin Chromium)...'
+              ? 'Generando código QR ligero con Baileys (sin Chromium)...'
               : 'Iniciando navegador Chromium (whatsapp-web.js)...'}
           </small>
         </div>
@@ -193,9 +193,11 @@ const QrGatewayContent = ({ isBaileys, whatsappConnected, whatsappNumber, qrStat
       )}
 
       {qrState.status === 'expired' && (
-        <div className="qr-box-container" style={{ background: 'var(--bg-secondary)', height: '180px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderRadius: '12px', border: '1px dashed #ef4444' }}>
+        <div className="qr-box-container" style={{ background: 'var(--bg-secondary)', height: '180px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderRadius: '12px', border: '1px dashed #ef4444', padding: '16px', textAlign: 'center' }}>
           <span style={{ fontSize: '13px', fontWeight: '600', color: '#ef4444' }}>Código QR Expirado ⚠️</span>
-          <button type="button" onClick={onConnectWhatsApp} className="btn-secondary" style={{ fontSize: '11px', padding: '6px 12px', marginTop: '10px' }}>Generar Nuevo QR</button>
+          <small style={{ color: 'var(--text-secondary)', marginTop: '6px' }}>
+            El tiempo de escaneo finalizó. Presiona el botón inferior para generar un nuevo código QR.
+          </small>
         </div>
       )}
     </div>
@@ -287,7 +289,6 @@ const WhatsAppLinkerCard = ({
             whatsappConnected={whatsappConnected}
             whatsappNumber={whatsappNumber}
             qrState={qrState}
-            onConnectWhatsApp={onConnectWhatsApp}
           />
         ) : (
           <MetaGatewayContent branch={branch} />
@@ -301,11 +302,27 @@ const WhatsAppLinkerCard = ({
               {disconnecting ? 'Desconectando...' : 'Desconectar Sesión de WhatsApp'}
             </button>
           ) : (
-            qrState.status === 'idle' && (
-              <button type="button" onClick={onConnectWhatsApp} className="btn-primary" style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
-                {isBaileys ? 'Vincular con Baileys (QR Ligero)' : 'Vincular con WhatsApp Web (QR Chromium)'}
-              </button>
-            )
+            <button
+              type="button"
+              onClick={() => onConnectWhatsApp(qrState.status !== 'idle')}
+              disabled={qrState.status === 'loading'}
+              className="btn-primary"
+              style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+            >
+              {qrState.status === 'loading' ? (
+                <>
+                  <RefreshCw size={16} style={{ animation: 'spin 1.5s linear infinite' }} />
+                  Generando Código QR...
+                </>
+              ) : qrState.status === 'active' || qrState.status === 'expired' ? (
+                <>
+                  <RefreshCw size={16} />
+                  Generar Nuevo Código QR
+                </>
+              ) : (
+                isBaileys ? 'Vincular con Baileys (QR Ligero)' : 'Vincular con WhatsApp Web (QR Chromium)'
+              )}
+            </button>
           )}
         </div>
       )}
@@ -339,7 +356,7 @@ const TestAndOptimizationCard = ({ config, setConfig }) => (
       </label>
     </div>
 
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px', alignItems: 'start' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '24px', alignItems: 'start' }}>
       <div>
         <label htmlFor="ai-test-phone" style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: '600' }}>
           <Phone size={14} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'middle' }} />
@@ -513,7 +530,7 @@ const CalendarSyncSettings = ({ config, setConfig, branchId, token }) => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '16px', borderTop: '1px solid var(--border-color)', paddingTop: '20px' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: '20px' }}>
         <div>
           <label htmlFor="ai-google-calendar-id" style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: '600' }}>
             ID del Calendario de Google
@@ -543,7 +560,7 @@ const CalendarSyncSettings = ({ config, setConfig, branchId, token }) => {
             style={{ display: 'none' }}
             onChange={handleCalendarFileUpload}
           />
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
             <button 
               type="button" 
               className="btn-secondary"
@@ -553,8 +570,8 @@ const CalendarSyncSettings = ({ config, setConfig, branchId, token }) => {
               <FileJson size={16} /> Cargar Archivo .json
             </button>
             {detectedEmail && (
-              <span style={{ fontSize: '12px', color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <CheckCircle2 size={14} /> {detectedEmail}
+              <span style={{ fontSize: '12px', color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px', wordBreak: 'break-all' }}>
+                <CheckCircle2 size={14} style={{ flexShrink: 0 }} /> {detectedEmail}
               </span>
             )}
           </div>
@@ -565,7 +582,7 @@ const CalendarSyncSettings = ({ config, setConfig, branchId, token }) => {
       </div>
 
       <div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
           <label htmlFor="ai-google-credentials-json" style={{ fontSize: '13px', fontWeight: '600' }}>
             Contenido del JSON de Credenciales
           </label>
@@ -888,8 +905,8 @@ const KnowledgeBaseCard = ({
         <small style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>PDF, TXT, CSV (Máx. 10MB)</small>
       </div>
 
-      <form onSubmit={handleAddRAGUrl} style={{ display: 'flex', gap: '8px' }}>
-        <div style={{ flex: 1, position: 'relative' }}>
+      <form onSubmit={handleAddRAGUrl} style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+        <div style={{ flex: '1 1 200px', position: 'relative' }}>
           <label htmlFor="ai-rag-url-input" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0,0,0,0)' }}>
             URL Web para RAG
           </label>
@@ -904,7 +921,7 @@ const KnowledgeBaseCard = ({
             onChange={(e) => setRagUrlInput(e.target.value)}
           />
         </div>
-        <button type="submit" disabled={submitting} className="btn-primary" style={{ padding: '0 18px', height: '42px', borderRadius: '12px', fontSize: '13px' }}>
+        <button type="submit" disabled={submitting} className="btn-primary" style={{ padding: '0 18px', height: '42px', borderRadius: '12px', fontSize: '13px', flexShrink: 0, justifyContent: 'center' }}>
           {submitting ? 'Añadiendo...' : 'Añadir Link'}
         </button>
       </form>
@@ -999,6 +1016,38 @@ const AIConfiguration = () => {
   const qrTimerRef = useRef(null);
   const [knowledgeSources, setKnowledgeSources] = useState([]);
 
+  const startQrPolling = (authConfig) => {
+    if (qrTimerRef.current) clearInterval(qrTimerRef.current);
+
+    qrTimerRef.current = setInterval(async () => {
+      try {
+        const res = await axios.get(`/api/gateway/${branchId}/status`, authConfig);
+        const data = res.data;
+
+        if (data.status === 'qr_ready' && data.qrImage) {
+          setQrState(prev => ({
+            url: data.qrImage,
+            secondsLeft: prev.secondsLeft > 2 ? prev.secondsLeft - 2 : 1,
+            status: 'active'
+          }));
+        } else if (data.status === 'connected') {
+          clearInterval(qrTimerRef.current);
+          qrTimerRef.current = null;
+          setWhatsappConnected(true);
+          setWhatsappNumber(data.connectedPhone || '');
+          setQrState({ url: null, secondsLeft: 0, status: 'idle' });
+          alert('¡WhatsApp vinculado exitosamente! El bot está listo para responder.');
+        } else if (data.status === 'error' || data.status === 'disconnected') {
+          clearInterval(qrTimerRef.current);
+          qrTimerRef.current = null;
+          setQrState({ url: null, secondsLeft: 0, status: 'expired' });
+        }
+      } catch (pollErr) {
+        console.error('Error consultando estado de WhatsApp:', pollErr);
+      }
+    }, 2500);
+  };
+
   useEffect(() => {
     if (!user?.token || !branchId) return;
     let ignore = false;
@@ -1031,8 +1080,12 @@ const AIConfiguration = () => {
             } else {
               setWhatsappConnected(fallbackConnected);
               setWhatsappNumber(fallbackPhone);
-              if (gwRes.data?.status === 'qr_ready') {
+              if (gwRes.data?.status === 'qr_ready' && gwRes.data?.qrImage) {
                 setQrState({ url: gwRes.data.qrImage, secondsLeft: 60, status: 'active' });
+                startQrPolling(authConfig);
+              } else if (gwRes.data?.status === 'initializing') {
+                setQrState({ url: null, secondsLeft: 180, status: 'loading' });
+                startQrPolling(authConfig);
               }
             }
           })
@@ -1086,43 +1139,23 @@ const AIConfiguration = () => {
     }
   };
 
-  const handleConnectWhatsApp = async () => {
+  const handleConnectWhatsApp = async (forceNew = false) => {
     if (qrState.status === 'loading') return;
     setQrState({ url: null, secondsLeft: 180, status: 'loading' });
     
     try {
       const authConfig = { headers: { Authorization: `Bearer ${user.token}` } };
-      await axios.post(`/api/gateway/${branchId}/qr`, { gatewayType: 'baileys' }, authConfig);
+      const { data: initData } = await axios.post(
+        `/api/gateway/${branchId}/qr`,
+        { gatewayType: 'baileys', forceNew: Boolean(forceNew) },
+        authConfig
+      );
 
-      if (qrTimerRef.current) clearInterval(qrTimerRef.current);
-      
-      qrTimerRef.current = setInterval(async () => {
-        try {
-          const res = await axios.get(`/api/gateway/${branchId}/status`, authConfig);
-          const data = res.data;
+      if (initData?.status === 'qr_ready' && initData?.qrImage && !forceNew) {
+        setQrState({ url: initData.qrImage, secondsLeft: 60, status: 'active' });
+      }
 
-          if (data.status === 'qr_ready' && data.qrImage) {
-            setQrState(prev => ({
-              url: data.qrImage,
-              secondsLeft: prev.secondsLeft > 2 ? prev.secondsLeft - 2 : 1,
-              status: 'active'
-            }));
-          } else if (data.status === 'connected') {
-            clearInterval(qrTimerRef.current);
-            qrTimerRef.current = null;
-            setWhatsappConnected(true);
-            setWhatsappNumber(data.connectedPhone || '');
-            setQrState({ url: null, secondsLeft: 0, status: 'idle' });
-            alert('¡WhatsApp vinculado exitosamente! El bot está listo para responder.');
-          } else if (data.status === 'error' || data.status === 'disconnected') {
-            clearInterval(qrTimerRef.current);
-            qrTimerRef.current = null;
-            setQrState({ url: null, secondsLeft: 0, status: 'expired' });
-          }
-        } catch (pollErr) {
-          console.error('Error consultando estado de WhatsApp:', pollErr);
-        }
-      }, 2500);
+      startQrPolling(authConfig);
     } catch (err) {
       console.error('Error iniciando WhatsApp:', err);
       alert('Error al iniciar WhatsApp: ' + (err.response?.data?.message || err.message));
@@ -1173,7 +1206,7 @@ const AIConfiguration = () => {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '30px' }}>
+        <div className="ai-config-grid">
           <ProviderConnectionCard config={config} setConfig={setConfig} />
           <WhatsAppLinkerCard 
             config={config}
@@ -1197,7 +1230,7 @@ const AIConfiguration = () => {
           token={user?.token}
         />
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '30px' }}>
+        <div className="ai-config-grid">
           <BehaviorRulesCard config={config} setConfig={setConfig} />
           <KnowledgeBaseCard 
             config={config}

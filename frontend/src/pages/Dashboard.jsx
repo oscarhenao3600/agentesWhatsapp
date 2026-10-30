@@ -226,14 +226,16 @@ const Dashboard = () => {
 
         <div className="responsive-grid">
           {businesses.map((biz) => (
-            <div key={biz._id} className="glass-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', height: '100%' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '15px', marginBottom: '16px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                  <div style={{ background: 'var(--accent-soft)', padding: '12px', borderRadius: '16px', display: 'flex' }}>
+            <div key={biz._id} className="glass-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', height: '100%', minWidth: 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', marginBottom: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: 1 }}>
+                  <div style={{ background: 'var(--accent-soft)', padding: '12px', borderRadius: '16px', display: 'flex', flexShrink: 0 }}>
                     <Bot size={28} className="gradient-text" />
                   </div>
-                  <div>
-                    <h3 style={{ fontSize: '18px', fontWeight: '700' }}>{biz.name}</h3>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <h3 style={{ fontSize: '18px', fontWeight: '700', lineHeight: '1.25', wordBreak: 'break-word', overflowWrap: 'anywhere', margin: '0 0 4px 0' }}>
+                      {biz.name}
+                    </h3>
                     <span className="badge badge-success" style={{ fontSize: '9px', padding: '2px 8px' }}>Activo</span>
                   </div>
                 </div>
@@ -244,6 +246,7 @@ const Dashboard = () => {
                     className="btn-secondary"
                     style={{
                       padding: '8px',
+                      flexShrink: 0,
                       color: 'var(--accent-primary)',
                       border: '1px solid rgba(99, 102, 241, 0.25)'
                     }}

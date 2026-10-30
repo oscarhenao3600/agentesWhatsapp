@@ -78,33 +78,39 @@ const BusinessList = () => {
 
   return (
     <>
-      <header style={{ marginBottom: '40px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+      <header className="page-header">
         <div>
-          <h1 style={{ fontSize: '32px', marginBottom: '8px' }}>Gestión de <span className="gradient-text">Negocios</span></h1>
+          <h1 style={{ fontSize: '28px', marginBottom: '8px' }}>Gestión de <span className="gradient-text">Negocios</span></h1>
           <p style={{ color: 'var(--text-secondary)' }}>Lista global de empresas vinculadas al sistema.</p>
         </div>
         {user.role === 'admin' && (
-          <button onClick={() => { setSelectedBusiness(null); setIsModalOpen(true); }} className="btn-primary">
-            <Plus size={18} /> Nuevo Negocio
-          </button>
+          <div className="page-header-actions">
+            <button onClick={() => { setSelectedBusiness(null); setIsModalOpen(true); }} className="btn-primary">
+              <Plus size={18} /> Nuevo Negocio
+            </button>
+          </div>
         )}
       </header>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '25px' }}>
+      <div className="responsive-grid">
         {businesses.map(biz => (
-          <div key={biz._id} className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                <div style={{ background: 'var(--accent-soft)', padding: '12px', borderRadius: '15px' }}>
+          <div key={biz._id} className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: 1 }}>
+                <div style={{ background: 'var(--accent-soft)', padding: '12px', borderRadius: '15px', flexShrink: 0, display: 'flex' }}>
                   <Building2 className="gradient-text" size={24} />
                 </div>
-                <div>
-                  <h3 style={{ fontSize: '18px' }}>{biz.name}</h3>
-                  <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>ID: {biz._id.slice(-6)}</span>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <h3 style={{ fontSize: '18px', lineHeight: '1.25', wordBreak: 'break-word', overflowWrap: 'anywhere', margin: 0 }}>
+                    {biz.name}
+                  </h3>
+                  <span style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginTop: '2px' }}>
+                    ID: {biz._id.slice(-6)}
+                  </span>
                 </div>
               </div>
               {user?.role === 'admin' && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
                   <button
                     type="button"
                     onClick={() => {

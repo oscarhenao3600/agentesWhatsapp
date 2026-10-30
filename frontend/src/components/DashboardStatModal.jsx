@@ -78,6 +78,7 @@ const DashboardStatModal = ({ isOpen, onClose, activeMetric, stats, navigate, us
 
   return (
     <div
+      className="stat-modal-overlay"
       style={{
         position: 'fixed',
         inset: 0,
@@ -92,7 +93,7 @@ const DashboardStatModal = ({ isOpen, onClose, activeMetric, stats, navigate, us
       onClick={onClose}
     >
       <div
-        className="glass-card"
+        className="glass-card stat-modal-card"
         style={{
           maxWidth: '880px',
           width: '100%',
@@ -107,6 +108,7 @@ const DashboardStatModal = ({ isOpen, onClose, activeMetric, stats, navigate, us
       >
         {/* Modal Header */}
         <div
+          className="stat-modal-header"
           style={{
             padding: '22px 26px',
             borderBottom: '1px solid var(--border-color)',
@@ -116,11 +118,11 @@ const DashboardStatModal = ({ isOpen, onClose, activeMetric, stats, navigate, us
             gap: '16px'
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-            <div style={{ background: currentConfig.iconBg, padding: '12px', borderRadius: '14px', display: 'flex' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0 }}>
+            <div style={{ background: currentConfig.iconBg, padding: '12px', borderRadius: '14px', display: 'flex', flexShrink: 0 }}>
               {currentConfig.icon}
             </div>
-            <div>
+            <div style={{ minWidth: 0 }}>
               <h2 style={{ fontSize: '20px', fontWeight: '700', margin: 0 }}>{currentConfig.title}</h2>
               <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '3px 0 0 0' }}>
                 {currentConfig.subtitle}
@@ -139,7 +141,7 @@ const DashboardStatModal = ({ isOpen, onClose, activeMetric, stats, navigate, us
         </div>
 
         {/* Scrollable Body */}
-        <div style={{ padding: '24px 26px', overflowY: 'auto', flex: 1 }}>
+        <div className="stat-modal-body" style={{ padding: '24px 26px', overflowY: 'auto', flex: 1 }}>
           {/* 1. VISTA NEGOCIOS */}
           {activeMetric === 'businesses' && (
             <>
@@ -756,6 +758,7 @@ const DashboardStatModal = ({ isOpen, onClose, activeMetric, stats, navigate, us
 
         {/* Modal Footer */}
         <div
+          className="stat-modal-footer"
           style={{
             padding: '16px 26px',
             borderTop: '1px solid var(--border-color)',
