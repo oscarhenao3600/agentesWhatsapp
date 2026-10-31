@@ -168,7 +168,7 @@ const QrGatewayContent = ({ isBaileys, whatsappConnected, whatsappNumber, qrStat
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
       <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
         {isBaileys
-          ? '⚡ Modo Ligero (Predeterminado en Raspberry Pi): Escanea el QR sin usar Chromium (~90% menos memoria RAM).'
+          ? '⚡ Modo Ligero Escanea el QR.'
           : '🖥️ Modo Chromium: Escanea el código QR usando el motor tradicional whatsapp-web.js.'}
       </p>
 
