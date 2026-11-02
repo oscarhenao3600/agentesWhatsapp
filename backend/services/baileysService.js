@@ -530,6 +530,22 @@ const initSession = async (branchId, initialQrCount = 0, forceNew = false) => {
                 sentByBotIds.add(sentMsg.key.id);
                 setTimeout(() => sentByBotIds.delete(sentMsg.key.id), 60000);
               }
+            },
+            sendDocumentCallback: async ({ fileBuffer, fileName, mimeType, caption }) => {
+              console.log(`[Baileys] 📎 Enviando documento "${fileName}" a ${remoteJid}...`);
+              const payload = (mimeType && mimeType.startsWith('image/'))
+                ? { image: fileBuffer, caption: caption || fileName }
+                : {
+                    document: fileBuffer,
+                    mimetype: mimeType || 'application/pdf',
+                    fileName: fileName || 'documento.pdf',
+                    caption: caption || undefined
+                  };
+              const sentDoc = await sock.sendMessage(remoteJid, payload);
+              if (sentDoc?.key?.id) {
+                sentByBotIds.add(sentDoc.key.id);
+                setTimeout(() => sentByBotIds.delete(sentDoc.key.id), 60000);
+              }
             }
           });
         } catch (msgErr) {
@@ -683,12 +699,62 @@ const sendDirectMessage = async (branchId, targetPhone, text) => {
   return true;
 };
 
+/**
+ * Envía un documento o archivo adjunto directamente a un número de WhatsApp usando Baileys
+ */
+const sendDirectDocument = async (branchId, targetPhone, { fileBuffer, fileName, mimeType, caption }) => {
+  const cleanPhone = String(targetPhone || '').replace(/[^0-9]/g, '');
+  if (!cleanPhone || !fileBuffer) return false;
+
+  let session = branchId ? sessions.get(branchId.toString()) : null;
+  if (!session || session.status !== 'connected' || !session.sock) {
+    for (const s of sessions.values()) {
+      if (s.status === 'connected' && s.sock) {
+        session = s;
+        break;
+      }
+    }
+  }
+
+  if (!session || session.status !== 'connected' || !session.sock) {
+    return false;
+  }
+
+  let targetJid = `${cleanPhone}@s.whatsapp.net`;
+  try {
+    if (typeof session.sock.onWhatsApp === 'function') {
+      const [result] = await session.sock.onWhatsApp(cleanPhone);
+      if (result && result.exists && result.jid) {
+        targetJid = result.jid;
+      }
+    }
+  } catch (e) {}
+
+  const payload = (mimeType && mimeType.startsWith('image/'))
+    ? { image: fileBuffer, caption: caption || fileName }
+    : {
+        document: fileBuffer,
+        mimetype: mimeType || 'application/pdf',
+        fileName: fileName || 'documento.pdf',
+        caption: caption || undefined
+      };
+
+  const sentMsg = await session.sock.sendMessage(targetJid, payload);
+  if (sentMsg?.key?.id) {
+    sentByBotIds.add(sentMsg.key.id);
+    setTimeout(() => sentByBotIds.delete(sentMsg.key.id), 60000);
+  }
+  console.log(`[Baileys] 📎 Documento "${fileName}" enviado a ${targetJid}.`);
+  return true;
+};
+
 module.exports = {
   initSession,
   getSessionStatus,
   hasActiveSession,
   disconnectSession,
   autoReconnectBaileysBranches,
-  sendDirectMessage
+  sendDirectMessage,
+  sendDirectDocument
 };
 

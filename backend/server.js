@@ -32,8 +32,8 @@ app.get('/ping', (req, res) => res.send('pong'));
 // Middlewares de Seguridad
 app.use(helmet()); // Cabeceras de seguridad
 app.use(cors()); // Habilitar CORS
-app.use(express.json({ limit: '10mb' })); // Parsear JSON con límite de tamaño para evitar ataques DoS por memoria
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: '25mb' })); // Parsear JSON permitiendo carga de documentos PDF/imágenes hasta 15MB
+app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 app.use(mongoSanitize({ replaceWith: '_' })); // Prevenir inyección NoSQL
 
 // Rutas

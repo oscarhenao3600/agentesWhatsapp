@@ -792,49 +792,90 @@ const KnowledgeBaseCard = ({
   setKnowledgeSources
 }) => {
   const [ragUrlInput, setRagUrlInput] = useState('');
+  const [docAliasInput, setDocAliasInput] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [uploadingFile, setUploadingFile] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef(null);
 
-  const processRAGFileUpload = async (file) => {
+  const handleInsertIntoPrompt = (source) => {
+    const label = source.alias || source.name;
+    const ruleSnippet = source.type === 'file'
+      ? `\n- Cuando el cliente consulte o pida información sobre "${label}", respóndele amablemente y envíale el documento "${source.name}".`
+      : `\n- Cuando el cliente consulte sobre "${label}", compártele el enlace: ${source.name}`;
+
+    setConfig(prev => ({
+      ...prev,
+      basePrompt: (prev.basePrompt || '').trim() + '\n' + ruleSnippet.trim()
+    }));
+  };
+
+  const processRAGFileUpload = (file) => {
     if (!file) return;
-    
-    const allowedTypes = ['application/pdf', 'text/plain', 'text/csv'];
-    if (!allowedTypes.includes(file.type) && !file.name.endsWith('.txt')) {
-      alert('Sube archivos válidos (PDF, TXT, CSV).');
+
+    const lowerName = file.name.toLowerCase();
+    const isAllowed =
+      file.type === 'application/pdf' ||
+      file.type === 'text/plain' ||
+      file.type === 'text/csv' ||
+      file.type.startsWith('image/') ||
+      lowerName.endsWith('.pdf') ||
+      lowerName.endsWith('.txt') ||
+      lowerName.endsWith('.csv') ||
+      lowerName.endsWith('.jpg') ||
+      lowerName.endsWith('.jpeg') ||
+      lowerName.endsWith('.png') ||
+      lowerName.endsWith('.webp');
+
+    if (!isAllowed) {
+      alert('Sube un archivo válido (PDF, TXT, CSV o Imagen JPG/PNG).');
       return;
     }
 
-    const tempId = `src-temp-${Date.now()}`;
-    const newSource = {
-      id: tempId,
-      type: 'file',
-      name: file.name,
-      status: 'indexing',
-      size: `${(file.size / 1024 / 1024).toFixed(2)} MB`
-    };
-
-    setKnowledgeSources(prev => [...prev, newSource]);
-
-    try {
-      const authConfig = { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' } };
-      const formData = new FormData();
-      formData.append('file', file);
-      
-      try {
-        const { data } = await axios.post(`/api/branch/${branchId}/upload`, formData, authConfig);
-        setTimeout(() => {
-          setKnowledgeSources(prev => prev.map(s => s.id === tempId ? { ...s, id: data.id || `src-${Date.now()}`, status: 'active' } : s));
-        }, 4000);
-      } catch {
-        setTimeout(() => {
-          setKnowledgeSources(prev => prev.map(s => s.id === tempId ? { ...s, status: 'active' } : s));
-        }, 4000);
-      }
-    } catch {
-      alert('Error en subida de RAG.');
-      setKnowledgeSources(prev => prev.filter(s => s.id !== tempId));
+    if (file.size > 12 * 1024 * 1024) {
+      alert('El archivo supera el límite de 12MB.');
+      return;
     }
+
+    const readableSize = `${(file.size / 1024 / 1024).toFixed(2)} MB`;
+    const chosenAlias = docAliasInput.trim() || file.name.replace(/\.[^/.]+$/, '');
+    setUploadingFile(true);
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const base64Data = event.target.result;
+        const authConfig = { headers: { Authorization: `Bearer ${token}` } };
+        const { data } = await axios.post(
+          `/api/branch/${branchId}/upload`,
+          {
+            fileName: file.name,
+            mimeType: file.type || 'application/pdf',
+            size: readableSize,
+            alias: chosenAlias,
+            fileDataBase64: base64Data
+          },
+          authConfig
+        );
+
+        setKnowledgeSources(prev => {
+          const filtered = prev.filter(s => !(s.type === 'file' && s.name.toLowerCase() === file.name.toLowerCase()));
+          return [...filtered, data];
+        });
+        setDocAliasInput('');
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      } catch (err) {
+        console.error('Error subiendo documento:', err);
+        alert('Error al guardar el documento: ' + (err.response?.data?.message || err.message));
+      } finally {
+        setUploadingFile(false);
+      }
+    };
+    reader.onerror = () => {
+      setUploadingFile(false);
+      alert('No se pudo leer el archivo seleccionado.');
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleAddRAGUrl = async (e) => {
@@ -848,60 +889,65 @@ const KnowledgeBaseCard = ({
     }
 
     setSubmitting(true);
-    setRagUrlInput('');
-
-    const tempId = `src-temp-${Date.now()}`;
-    const newSource = {
-      id: tempId,
-      type: 'url',
-      name: url,
-      status: 'indexing'
-    };
-
-    setKnowledgeSources(prev => [...prev, newSource]);
-
     try {
       const authConfig = { headers: { Authorization: `Bearer ${token}` } };
-      try {
-        const { data } = await axios.post(`/api/branch/${branchId}/url`, { url }, authConfig);
-        setTimeout(() => {
-          setKnowledgeSources(prev => prev.map(s => s.id === tempId ? { ...s, id: data.id || `src-${Date.now()}`, status: 'active' } : s));
-        }, 3000);
-      } catch {
-        setTimeout(() => {
-          setKnowledgeSources(prev => prev.map(s => s.id === tempId ? { ...s, status: 'active' } : s));
-        }, 3000);
-      }
-    } catch {
-      alert('Error al agregar URL.');
-      setKnowledgeSources(prev => prev.filter(s => s.id !== tempId));
+      const { data } = await axios.post(
+        `/api/branch/${branchId}/url`,
+        { url, alias: docAliasInput.trim() || url },
+        authConfig
+      );
+      setKnowledgeSources(prev => [...prev, data]);
+      setRagUrlInput('');
+      setDocAliasInput('');
+    } catch (err) {
+      alert('Error al guardar el enlace: ' + (err.response?.data?.message || err.message));
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleDeleteRAGSource = async (sourceId) => {
-    if (window.confirm('¿Seguro que deseas eliminar este documento de la base de conocimientos?')) {
+    if (window.confirm('¿Seguro que deseas eliminar este documento de la sucursal?')) {
       try {
         const authConfig = { headers: { Authorization: `Bearer ${token}` } };
-        setKnowledgeSources(prev => prev.filter(s => s.id !== sourceId));
         await axios.delete(`/api/branch/${branchId}/sources/${sourceId}`, authConfig);
-      } catch {
-        console.warn('Recurso removido localmente.');
+        setKnowledgeSources(prev => prev.filter(s => s.id !== sourceId));
+      } catch (err) {
+        alert('Error al eliminar el documento: ' + (err.response?.data?.message || err.message));
       }
     }
   };
 
   return (
-    <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <FileText size={24} style={{ color: 'var(--accent-primary)' }} />
-        <h3 style={{ fontSize: '20px' }}>Base de Conocimiento (RAG)</h3>
+    <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <FileText size={24} style={{ color: 'var(--accent-primary)' }} />
+          <h3 style={{ fontSize: '20px', margin: 0 }}>Base de Conocimiento y Documentos (RAG)</h3>
+        </div>
+        <span className="badge badge-success" style={{ fontSize: '11px' }}>
+          {knowledgeSources.length} {knowledgeSources.length === 1 ? 'documento cargado' : 'documentos cargados'}
+        </span>
       </div>
 
-      <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
-        Alimente el conocimiento del bot subiendo archivos estructurados (PDF de carta, precios, FAQ de habitaciones) o agregando enlaces web.
+      <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.4', margin: 0 }}>
+        Sube documentos (ej. <strong>Políticas de Mascotas</strong>, <strong>Menú del Restaurante en PDF</strong>, tarifarios) y referéncialos en el Prompt para que el agente los envíe automáticamente por WhatsApp al cliente cuando corresponda.
       </p>
+
+      <div>
+        <label htmlFor="ai-doc-alias-input" style={{ display: 'block', marginBottom: '6px', fontSize: '12px', fontWeight: '600' }}>
+          Etiqueta o Tema del Documento antes de subirlo (Opcional)
+        </label>
+        <input
+          id="ai-doc-alias-input"
+          type="text"
+          className="input-field"
+          style={{ height: '38px', fontSize: '13px' }}
+          placeholder="Ej: Políticas para Mascotas, Menú Restaurante, Catálogo Suites..."
+          value={docAliasInput}
+          onChange={(e) => setDocAliasInput(e.target.value)}
+        />
+      </div>
 
       <div 
         className={`drag-drop-zone ${isDragging ? 'active' : ''}`}
@@ -914,25 +960,25 @@ const KnowledgeBaseCard = ({
           setIsDragging(false);
           if (e.dataTransfer.files?.[0]) processRAGFileUpload(e.dataTransfer.files[0]);
         }}
-        onClick={() => fileInputRef.current?.click()}
+        onClick={() => !uploadingFile && fileInputRef.current?.click()}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            fileInputRef.current?.click();
+            if (!uploadingFile) fileInputRef.current?.click();
           }
         }}
         style={{
           border: '2px dashed var(--border-color)',
           borderRadius: '12px',
-          padding: '20px',
+          padding: '16px',
           textAlign: 'center',
-          cursor: 'pointer',
+          cursor: uploadingFile ? 'wait' : 'pointer',
           background: isDragging ? 'var(--accent-soft)' : 'var(--bg-secondary)',
           transition: 'background-color 0.2s, border-color 0.2s',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          gap: '8px'
+          gap: '6px'
         }}
       >
         <label htmlFor="ai-rag-file-upload" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0,0,0,0)' }}>
@@ -944,11 +990,13 @@ const KnowledgeBaseCard = ({
           ref={fileInputRef} 
           style={{ display: 'none' }} 
           onChange={(e) => processRAGFileUpload(e.target.files?.[0])}
-          accept=".pdf,.txt,.csv"
+          accept=".pdf,.txt,.csv,.jpg,.jpeg,.png,.webp"
         />
-        <UploadCloud size={32} style={{ color: 'var(--accent-primary)' }} />
-        <strong style={{ fontSize: '13px', color: 'var(--text-primary)' }}>Arrastra o selecciona un archivo RAG</strong>
-        <small style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>PDF, TXT, CSV (Máx. 10MB)</small>
+        <UploadCloud size={28} style={{ color: 'var(--accent-primary)' }} />
+        <strong style={{ fontSize: '13px', color: 'var(--text-primary)' }}>
+          {uploadingFile ? 'Subiendo y guardando documento...' : 'Haz clic o arrastra un documento aquí para cargarlo'}
+        </strong>
+        <small style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>PDF, Imágenes (JPG/PNG), TXT, CSV (Máx. 12MB)</small>
       </div>
 
       <form onSubmit={handleAddRAGUrl} style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -962,7 +1010,7 @@ const KnowledgeBaseCard = ({
             type="text" 
             className="input-field"
             style={{ paddingLeft: '32px', height: '42px', fontSize: '13px' }}
-            placeholder="Añadir URL web (Ej: https://docs...)" 
+            placeholder="Añadir URL web o catálogo (Ej: https://...)" 
             value={ragUrlInput}
             onChange={(e) => setRagUrlInput(e.target.value)}
           />
@@ -972,44 +1020,59 @@ const KnowledgeBaseCard = ({
         </button>
       </form>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '160px', overflowY: 'auto', paddingRight: '4px' }}>
-        {knowledgeSources.length === 0 ? (
-          <div style={{ padding: '12px', textAlign: 'center', fontSize: '12px', color: 'var(--text-secondary)', background: 'var(--bg-secondary)', borderRadius: '12px' }}>
-            La base de conocimientos está vacía. ¡Suba su primer documento! 📚
-          </div>
-        ) : (
-          [...knowledgeSources].reverse().map(source => (
-            <div key={source.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'var(--bg-secondary)', borderRadius: '12px', border: '1px solid var(--border-color)', fontSize: '13px' }}>
-              <div style={{ minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: '2px', marginRight: '10px' }}>
-                <span style={{ fontWeight: '500', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={source.name}>
-                  {source.name}
-                </span>
-                <small style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>
-                  {source.type === 'file' ? `Documento PDF • ${source.size || '1.0MB'}` : 'Enlace Web Scraping'}
-                </small>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span className={`badge ${source.status === 'active' ? 'badge-success' : 'badge-warning'}`} style={{ fontSize: '10px', padding: '2px 6px' }}>
-                  {source.status === 'active' ? 'Listo' : 'Indexando'}
-                </span>
-                <button 
-                  type="button" 
-                  onClick={() => handleDeleteRAGSource(source.id)} 
-                  aria-label={`Eliminar recurso ${source.name}`}
-                  style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px', display: 'flex' }}
-                  title="Desvincular de la memoria"
-                >
-                  <Trash2 size={16} />
-                </button>
-              </div>
+      <div>
+        <span style={{ display: 'block', marginBottom: '6px', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>
+          Documentos Cargados en esta Sucursal ({knowledgeSources.length}):
+        </span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '220px', overflowY: 'auto', paddingRight: '4px' }}>
+          {knowledgeSources.length === 0 ? (
+            <div style={{ padding: '14px', textAlign: 'center', fontSize: '12px', color: 'var(--text-secondary)', background: 'var(--bg-secondary)', borderRadius: '12px', border: '1px dashed var(--border-color)' }}>
+              No has cargado ningún documento en esta sucursal todavía. Sube tu primer PDF o menú arriba 📚
             </div>
-          ))
-        )}
+          ) : (
+            [...knowledgeSources].reverse().map(source => (
+              <div key={source.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', padding: '10px 12px', background: 'var(--bg-secondary)', borderRadius: '12px', border: '1px solid var(--border-color)', fontSize: '13px', flexWrap: 'wrap' }}>
+                <div style={{ minWidth: '140px', flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  <span style={{ fontWeight: '600', color: 'var(--text-primary)', wordBreak: 'break-word' }} title={source.name}>
+                    📄 {source.name}
+                  </span>
+                  <small style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                    {source.alias && source.alias !== source.name ? `Tema: "${source.alias}" • ` : ''}
+                    {source.type === 'file' ? `Archivo adjuntable • ${source.size || 'PDF'}` : 'Enlace Web'}
+                  </small>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => handleInsertIntoPrompt(source)}
+                    style={{ padding: '4px 10px', fontSize: '11px', borderRadius: '8px' }}
+                    title="Inserta una regla en el Prompt Base para que el bot envíe este documento al cliente"
+                  >
+                    ➕ Referenciar en Prompt
+                  </button>
+                  <span className="badge badge-success" style={{ fontSize: '10px', padding: '2px 6px' }}>
+                    Cargado
+                  </span>
+                  <button 
+                    type="button" 
+                    onClick={() => handleDeleteRAGSource(source.id)} 
+                    aria-label={`Eliminar recurso ${source.name}`}
+                    style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px', display: 'flex' }}
+                    title="Eliminar documento"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       </div>
 
-      <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '15px', marginTop: '10px' }}>
+      <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '15px', marginTop: '4px' }}>
         <label htmlFor="ai-menu-content" style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: '600' }}>
-          Carta / Menú en Texto Plano (Respaldo)
+          Carta / Menú o Tarifario en Texto Plano (Respaldo)
         </label>
         <textarea 
           id="ai-menu-content"
@@ -1144,17 +1207,18 @@ const AIConfiguration = () => {
             }
           });
 
+        if (Array.isArray(data.aiConfig?.knowledgeSources)) {
+          setKnowledgeSources(data.aiConfig.knowledgeSources);
+        }
+
         axios.get(`/api/branch/${branchId}/sources`, authConfig)
           .then((resSources) => {
-            if (!ignore) setKnowledgeSources(resSources.data || []);
-          })
-          .catch(() => {
-            if (!ignore) {
-              setKnowledgeSources([
-                { id: 'src-1', type: 'file', name: 'Menu_Restaurante_Hamburguesas.pdf', status: 'active', size: '1.2 MB' },
-                { id: 'src-2', type: 'url', name: 'https://ejemplomenucomida.com/menu', status: 'active' }
-              ]);
+            if (!ignore && Array.isArray(resSources.data)) {
+              setKnowledgeSources(resSources.data);
             }
+          })
+          .catch((srcErr) => {
+            console.warn('No se pudieron consultar documentos adicionales:', srcErr.message);
           });
 
         setLoading(false);

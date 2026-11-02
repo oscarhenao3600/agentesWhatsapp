@@ -102,13 +102,39 @@ const generateDynamicResponse = async (aiConfig, userMessage, history = [], extr
 
   const adminEscalationRule = `
     REGLA DE ESCALAMIENTO AL ADMINISTRADOR (CUANDO NO TIENES LA INFORMACIÓN):
-    Si el cliente realiza una pregunta específica cuya respuesta NO se encuentra en las instrucciones base, ni en el catálogo/menú, ni en el historial de la conversación (por ejemplo: servicios especiales no listados, políticas no especificadas, descuentos especiales o detalles que desconoces):
+    Si el cliente realiza una pregunta específica cuya respuesta NO se encuentra en las instrucciones base, ni en el catálogo/menú, ni en los documentos cargados, ni en el historial de la conversación (por ejemplo: servicios especiales no listados, políticas no especificadas, descuentos especiales o detalles que desconoces):
     1. NO inventes ni supongas datos.
     2. Indícale amablemente al cliente que estás consultando su inquietud directamente con el administrador de la sucursal y que en breve le transmitirás la respuesta por este mismo chat.
     3. AL FINAL de tu respuesta, incluye obligatoriamente un bloque JSON entre las etiquetas <ADMIN_QUERY_JSON> y </ADMIN_QUERY_JSON> con el siguiente formato exacto:
     <ADMIN_QUERY_JSON>{"detected": true, "question": "Pregunta exacta o duda del cliente que requiere respuesta del administrador"}</ADMIN_QUERY_JSON>
-    Si sí tienes la información para responder o es un saludo/conversación normal dentro de tu conocimiento, NO incluyas la etiqueta <ADMIN_QUERY_JSON>.
+    Si sí tienes la información para responder o tienes un documento cargado sobre ese tema, NO incluyas la etiqueta <ADMIN_QUERY_JSON>.
   `;
+
+  // Construir contexto de documentos y enlaces cargados en Base de Conocimiento (RAG)
+  let knowledgeDocumentsContext = '';
+  const sources = Array.isArray(aiConfig?.knowledgeSources) ? aiConfig.knowledgeSources : [];
+  if (sources.length > 0) {
+    const fileItems = sources.filter(s => s.type === 'file');
+    const urlItems = sources.filter(s => s.type === 'url');
+
+    const docsSummary = fileItems.map(f => {
+      const textSnippet = f.extractedText ? `\n      Contenido del documento:\n      ${f.extractedText.substring(0, 3000)}` : '';
+      return `    - Archivo disponible para enviar por WhatsApp: "${f.name}" (Referencia/Tema: "${f.alias || f.name}")${textSnippet}`;
+    }).join('\n');
+
+    const urlsSummary = urlItems.map(u => `    - Enlace de referencia: ${u.name} (${u.alias || 'Web'})`).join('\n');
+
+    knowledgeDocumentsContext = `
+    BASE DE CONOCIMIENTO (RAG) Y DOCUMENTOS ADJUNTABLES CARGADOS EN LA SUCURSAL:
+${docsSummary}
+${urlsSummary}
+
+    REGLA PARA ENVIAR DOCUMENTOS / ARCHIVOS CARGADOS AL CLIENTE:
+    Si en las instrucciones del Prompt Base se indica enviar alguno de los documentos cargados ante una consulta (por ejemplo: políticas para mascotas, menú/carta del restaurante, catálogo PDF, reglamento) o si el cliente solicita esa información:
+    1. Responde amablemente en texto según lo indicado en el prompt (ej: confirmando que sí se aceptan mascotas bajo nuestras políticas y que a continuación le compartes el documento).
+    2. AL FINAL de tu respuesta, añade obligatoriamente la etiqueta <SEND_DOCUMENT_JSON>{"files": ["Nombre_Exacto_Del_Archivo"]}</SEND_DOCUMENT_JSON> usando el nombre exacto del archivo listado arriba para que el sistema adjunte y envíe el documento automáticamente al WhatsApp del cliente.
+    `;
+  }
 
   const systemInstruction = `
     Actúa como un asistente para el negocio. Instrucciones: ${basePrompt}
@@ -116,6 +142,8 @@ const generateDynamicResponse = async (aiConfig, userMessage, history = [], extr
     Catálogo/Menú o información disponible (usa esto para responder):
     ${aiConfig?.menuContent || 'No hay menú específico provisto.'}
     
+    ${knowledgeDocumentsContext}
+
     ${categoryInstructions}
 
     ${calendarContext}

@@ -1,3 +1,5 @@
+const fs = require('fs');
+const path = require('path');
 const { generateDynamicResponse } = require('../services/aiService');
 const { sendTextMessage, markAsRead } = require('../services/metaService');
 const Branch = require('../models/Branch');
@@ -375,7 +377,7 @@ const notifyAdminFailure = async ({ branch, aiConfig, cleanFrom, contactName, me
  * 2. Posicional (Meta Webhook): handleIncomingMessage(from, phoneNumberId, messageText, messageId, contactName)
  */
 const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '', arg6 = null) => {
-  let from, branchId, phoneNumberId, messageText, messageId, contactName, gateway, replyCallback, mediaType, hasMedia;
+  let from, branchId, phoneNumberId, messageText, messageId, contactName, gateway, replyCallback, sendDocumentCallback, mediaType, hasMedia;
   let extraPhone = '';
   let lid = '';
   let rawSender = '';
@@ -393,6 +395,7 @@ const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '', arg6 = n
     contactName = arg1.contactName || '';
     gateway = arg1.gateway || 'baileys';
     replyCallback = arg1.replyCallback;
+    sendDocumentCallback = arg1.sendDocumentCallback;
     hasMedia = Boolean(arg1.hasMedia);
     mediaType = arg1.mediaType || null;
     quotedText = arg1.quotedText || '';
@@ -713,11 +716,12 @@ const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '', arg6 = n
       return technicalFallbackMsg;
     }
 
-    // 7. Extraer JSON de pedido, reservación o consulta al administrador si existe
+    // 7. Extraer JSON de pedido, reservación, consulta al administrador o envío de documentos si existe
     let cleanResponse = rawResponse;
     let orderData = null;
     let reservationData = null;
     let adminQueryData = null;
+    let requestedDocuments = [];
 
     if (cleanResponse.includes('<ORDER_JSON>')) {
       const match = cleanResponse.match(/<ORDER_JSON>([\s\S]*?)<\/ORDER_JSON>/);
@@ -753,6 +757,32 @@ const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '', arg6 = n
           console.error('Error parseando JSON de consulta al administrador:', e);
         }
       }
+    }
+
+    if (cleanResponse.includes('<SEND_DOCUMENT_JSON>')) {
+      const match = cleanResponse.match(/<SEND_DOCUMENT_JSON>([\s\S]*?)<\/SEND_DOCUMENT_JSON>/);
+      if (match && match[1]) {
+        try {
+          const docJson = JSON.parse(match[1].trim());
+          if (Array.isArray(docJson.files)) {
+            requestedDocuments.push(...docJson.files);
+          } else if (docJson.file || docJson.name) {
+            requestedDocuments.push(docJson.file || docJson.name);
+          }
+          cleanResponse = cleanResponse.replace(/<SEND_DOCUMENT_JSON>[\s\S]*?<\/SEND_DOCUMENT_JSON>/g, '').trim();
+        } catch (e) {
+          console.error('Error parseando JSON de envío de documento:', e);
+        }
+      }
+    }
+
+    // También soportar sintaxis directa [ENVIAR_DOC: NombreArchivo] si la IA la incluyó en el texto
+    const inlineDocMatches = [...cleanResponse.matchAll(/\[ENVIAR_DOC:\s*([^\]]+)\]/gi)];
+    if (inlineDocMatches.length > 0) {
+      for (const m of inlineDocMatches) {
+        if (m[1]) requestedDocuments.push(m[1].trim());
+      }
+      cleanResponse = cleanResponse.replace(/\[ENVIAR_DOC:\s*[^\]]+\]/gi, '').trim();
     }
 
     // Si hay consulta para el administrador, registrarla en la conversación
@@ -925,6 +955,66 @@ const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '', arg6 = n
       console.log(`[MetaAPI] Respuesta enviada a ${cleanFrom}: "${cleanResponse}"`);
     } else {
       console.warn(`[Canal no configurado] No se pudo enviar mensaje saliente para ${cleanFrom}`);
+    }
+
+    // 11. Si la IA determinó que debe adjuntar uno o más documentos de la Base de Conocimiento (ej. Políticas de Mascotas, Menú PDF)
+    if (requestedDocuments.length > 0 && Array.isArray(aiConfig?.knowledgeSources) && aiConfig.knowledgeSources.length > 0) {
+      const uniqueDocs = [...new Set(requestedDocuments.map(d => String(d).trim()).filter(Boolean))];
+      for (const reqDocName of uniqueDocs) {
+        const normTarget = normalizeText(reqDocName);
+        const matchedSource = aiConfig.knowledgeSources.find(src => {
+          if (src.type !== 'file') return false;
+          const normName = normalizeText(src.name);
+          const normAlias = normalizeText(src.alias);
+          return (
+            normName === normTarget ||
+            normAlias === normTarget ||
+            normName.includes(normTarget) ||
+            normTarget.includes(normName) ||
+            (normAlias && (normAlias.includes(normTarget) || normTarget.includes(normAlias)))
+          );
+        });
+
+        if (matchedSource) {
+          let fileBuffer = null;
+          if (matchedSource.filePath && fs.existsSync(matchedSource.filePath)) {
+            fileBuffer = fs.readFileSync(matchedSource.filePath);
+          } else if (matchedSource.fileDataBase64) {
+            fileBuffer = Buffer.from(matchedSource.fileDataBase64, 'base64');
+            // Reconstruir en disco si no existía
+            if (matchedSource.filePath) {
+              try {
+                fs.mkdirSync(path.dirname(matchedSource.filePath), { recursive: true });
+                fs.writeFileSync(matchedSource.filePath, fileBuffer);
+              } catch (e) {}
+            }
+          }
+
+          if (fileBuffer) {
+            try {
+              if (typeof sendDocumentCallback === 'function') {
+                await sendDocumentCallback({
+                  fileBuffer,
+                  fileName: matchedSource.name,
+                  mimeType: matchedSource.mimeType || 'application/pdf',
+                  caption: matchedSource.alias || matchedSource.name
+                });
+              } else {
+                const baileysService = require('../services/baileysService');
+                await baileysService.sendDirectDocument(branch._id, cleanFrom, {
+                  fileBuffer,
+                  fileName: matchedSource.name,
+                  mimeType: matchedSource.mimeType || 'application/pdf',
+                  caption: matchedSource.alias || matchedSource.name
+                });
+              }
+              console.log(`📎 [Documento RAG Enviado] "${matchedSource.name}" enviado exitosamente al cliente ${cleanFrom}.`);
+            } catch (docErr) {
+              console.error(`[Documento RAG] Error enviando archivo "${matchedSource.name}" a ${cleanFrom}:`, docErr.message);
+            }
+          }
+        }
+      }
     }
 
     return cleanResponse;

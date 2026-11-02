@@ -53,6 +53,55 @@ const branchAIConfigSchema = new mongoose.Schema({
     type: String, // Texto plano o JSON con el menú/catálogo
     default: ''
   },
+  // --- BASE DE CONOCIMIENTO (RAG) Y DOCUMENTOS ENVIABLES POR WHATSAPP ---
+  knowledgeSources: [{
+    id: {
+      type: String,
+      required: true
+    },
+    type: {
+      type: String,
+      enum: ['file', 'url'],
+      default: 'file'
+    },
+    name: {
+      type: String,
+      required: true
+    },
+    alias: {
+      type: String,
+      default: '' // Etiqueta corta o descripción para referenciar en el prompt (ej: "Políticas de Mascotas")
+    },
+    mimeType: {
+      type: String,
+      default: 'application/pdf'
+    },
+    size: {
+      type: String,
+      default: ''
+    },
+    filePath: {
+      type: String,
+      default: '' // Ruta local en volumen persistente (.wwebjs_auth/knowledge_files/...)
+    },
+    fileDataBase64: {
+      type: String,
+      default: '' // Respaldo en BD para reconstruir el archivo si se mueve de servidor
+    },
+    extractedText: {
+      type: String,
+      default: '' // Contenido de texto extraído para contexto de la IA
+    },
+    status: {
+      type: String,
+      enum: ['indexing', 'active', 'error'],
+      default: 'active'
+    },
+    uploadedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
   basePrompt: {
     type: String,
     required: [true, 'El prompt base para la IA es obligatorio']
