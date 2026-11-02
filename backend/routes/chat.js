@@ -5,13 +5,15 @@ const {
   sendManualMessage, 
   deleteConversation, 
   deleteMultipleConversations, 
-  clearBranchConversations 
+  clearBranchConversations,
+  toggleBotPause
 } = require('../controllers/chatController');
 const { protect } = require('../middleware/auth');
 
 router.get('/:branchId', protect, getConversations);
 router.post('/:branchId/send', protect, sendManualMessage);
 router.post('/delete-multiple', protect, deleteMultipleConversations);
+router.patch('/:id/bot-status', protect, toggleBotPause);
 router.delete('/branch/:branchId/clear', protect, clearBranchConversations);
 router.delete('/:id', protect, deleteConversation);
 

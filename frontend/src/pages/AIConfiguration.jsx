@@ -720,6 +720,52 @@ const BehaviorRulesCard = ({ config, setConfig }) => (
       />
     </div>
 
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '20px', padding: '14px', background: 'var(--bg-secondary)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+      <div>
+        <label htmlFor="ai-branch-admin-phone" style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '600' }}>
+          <Phone size={14} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'middle' }} />
+          WhatsApp del Administrador (Escalamiento #ID)
+        </label>
+        <input 
+          id="ai-branch-admin-phone"
+          type="text" 
+          className="input-field" 
+          placeholder="Ej: 573113414361 (Opcional: usa el de la sucursal)"
+          value={config.branchAdminPhone || ''}
+          onChange={(e) => setConfig({ ...config, branchAdminPhone: e.target.value })}
+        />
+        <small style={{ display: 'block', marginTop: '6px', fontSize: '11px', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
+          Cuando el bot no sepa responder algo, enviará la pregunta con un <strong>#ID</strong> a este WhatsApp. El admin responde <code>#ID respuesta</code> y el bot se la entrega al cliente.
+        </small>
+      </div>
+
+      <div>
+        <label htmlFor="ai-post-order-pause" style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '600' }}>
+          Pausa Automática Post-Cierre
+        </label>
+        {config.businessType === 'hotel' ? (
+          <div style={{ padding: '10px 12px', background: 'rgba(59, 130, 246, 0.08)', borderRadius: '8px', border: '1px solid rgba(59, 130, 246, 0.3)', fontSize: '12px', lineHeight: '1.4', color: 'var(--text-primary)' }}>
+            🏨 <strong>Modo Hotel Activo:</strong> Al confirmar una reserva, el bot agenda en Google Calendar y <strong>se hace a un lado automáticamente hasta finalizar el Check-Out</strong> del huésped.
+          </div>
+        ) : (
+          <>
+            <input 
+              id="ai-post-order-pause"
+              type="number" 
+              min="5"
+              max="1440"
+              className="input-field" 
+              value={config.postOrderPauseMinutes ?? 40}
+              onChange={(e) => setConfig({ ...config, postOrderPauseMinutes: parseInt(e.target.value, 10) || 40 })}
+            />
+            <small style={{ display: 'block', marginTop: '6px', fontSize: '11px', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
+              Minutos que el bot se hace a un lado tras confirmar un pedido (por defecto <strong>40 min</strong> mientras se entrega el pedido).
+            </small>
+          </>
+        )}
+      </div>
+    </div>
+
     <div style={{ marginBottom: '10px' }}>
       <label htmlFor="ai-base-prompt" style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: '600' }}>Prompt Base (Instrucciones Generales)</label>
       <textarea 
@@ -988,6 +1034,8 @@ const DEFAULT_AI_CONFIG = {
   basePrompt: '',
   menuContent: '',
   welcomeMessage: '¡Hola! ¿En qué puedo ayudarte hoy?',
+  branchAdminPhone: '',
+  postOrderPauseMinutes: 40,
   additionalParams: {},
   gatewayType: 'baileys',
   testMode: false,

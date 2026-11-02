@@ -1,7 +1,7 @@
 const Conversation = require('../models/Conversation');
 const Branch = require('../models/Branch');
 const Business = require('../models/Business');
-const { sendTextMessage } = require('../services/metaService');
+const { sendOutboundWhatsAppMessage } = require('./whatsappController');
 
 // Auxiliar para validar si el usuario tiene acceso a la sucursal
 const validateBranchAccess = async (userId, userRole, branchId) => {
@@ -29,6 +29,22 @@ exports.getConversations = async (req, res) => {
     }
 
     const conversations = await Conversation.find({ branch: branchId }).sort({ lastInteraction: -1 });
+    const now = new Date();
+    for (const conv of conversations) {
+      let dirty = false;
+      if (!conv.shortId && conv._id) {
+        conv.shortId = conv._id.toString().slice(-4).toUpperCase();
+        dirty = true;
+      }
+      if (conv.botPausedUntil && new Date(conv.botPausedUntil) <= now) {
+        conv.botPausedUntil = null;
+        conv.pauseReason = 'none';
+        dirty = true;
+      }
+      if (dirty) {
+        await conv.save();
+      }
+    }
     res.json(conversations);
   } catch (error) {
     console.error('Error al obtener conversaciones:', error);
@@ -60,12 +76,11 @@ exports.sendManualMessage = async (req, res) => {
       return res.status(404).json({ message: 'Sucursal no encontrada' });
     }
 
-    if (!branch.whatsappNumberId || !branch.accessToken) {
-      return res.status(400).json({ message: 'La sucursal no tiene configuradas las credenciales de WhatsApp' });
+    // 1. Enviar el mensaje a través de la pasarela activa (Baileys, WhatsApp Web o Meta API)
+    const sent = await sendOutboundWhatsAppMessage(branch, cleanCustomerNumber, message);
+    if (!sent) {
+      return res.status(400).json({ message: 'No se pudo enviar el mensaje. Verifica que el WhatsApp de la sucursal esté conectado.' });
     }
-
-    // 1. Enviar el mensaje a través de WhatsApp (Meta API)
-    await sendTextMessage(branch.whatsappNumberId, branch.accessToken, cleanCustomerNumber, message);
 
     // 2. Registrar en la base de datos
     let conversation = await Conversation.findOne({ branch: branchId, customerNumber: cleanCustomerNumber });
@@ -182,6 +197,40 @@ exports.clearBranchConversations = async (req, res) => {
   } catch (error) {
     console.error('Error al vaciar conversaciones:', error);
     res.status(500).json({ message: 'Error al vaciar las conversaciones' });
+  }
+};
+
+// @desc    Pausar o reactivar el bot para una conversación específica
+// @route   PATCH /api/chat/:id/bot-status
+// @access  Private
+exports.toggleBotPause = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { paused, minutes = 40 } = req.body;
+
+    const conversation = await Conversation.findById(id);
+    if (!conversation) {
+      return res.status(404).json({ message: 'Conversación no encontrada' });
+    }
+
+    const hasAccess = await validateBranchAccess(req.user._id, req.user.role, conversation.branch);
+    if (!hasAccess) {
+      return res.status(403).json({ message: 'No tienes acceso para modificar esta conversación' });
+    }
+
+    if (paused) {
+      conversation.botPausedUntil = new Date(Date.now() + Number(minutes) * 60 * 1000);
+      conversation.pauseReason = 'manual';
+    } else {
+      conversation.botPausedUntil = null;
+      conversation.pauseReason = 'none';
+    }
+
+    await conversation.save();
+    res.json({ success: true, conversation });
+  } catch (error) {
+    console.error('Error al actualizar estado del bot en la conversación:', error);
+    res.status(500).json({ message: 'Error al actualizar el estado del bot' });
   }
 };
 

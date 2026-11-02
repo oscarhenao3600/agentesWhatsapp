@@ -141,8 +141,26 @@ const ChatsSidebarHeader = ({
   </div>
 );
 
+const isBotCurrentlyPaused = (chat) => {
+  if (!chat?.botPausedUntil) return false;
+  return new Date(chat.botPausedUntil) > new Date();
+};
+
+const formatPauseUntil = (dateStr) => {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  return d.toLocaleString('es-CO', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+};
+
 const ChatListItem = ({ chat, isActive, isSelectionMode, isSelected, onSelectChat, onToggleSelectChat, onDeleteSingle }) => {
   const lastMsg = chat.messages?.[chat.messages.length - 1];
+  const shortCode = chat.shortId || (chat._id ? chat._id.slice(-4).toUpperCase() : '');
+  const paused = isBotCurrentlyPaused(chat);
   const handleActivate = () => {
     if (isSelectionMode) {
       onToggleSelectChat(chat._id);
@@ -187,7 +205,19 @@ const ChatListItem = ({ chat, isActive, isSelectionMode, isSelected, onSelectCha
         </div>
         <div className="chat-info">
           <div className="chat-name-row">
-            <span className="chat-name">{chat.customerName || chat.customerNumber}</span>
+            <span className="chat-name" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              {chat.customerName || chat.customerNumber}
+              {shortCode && (
+                <small style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '6px', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', color: 'var(--accent-primary)', fontWeight: '700' }}>
+                  #{shortCode}
+                </small>
+              )}
+              {paused && (
+                <small style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '6px', background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', fontWeight: '600' }} title={`Bot en pausa hasta ${formatPauseUntil(chat.botPausedUntil)}`}>
+                  ⏸️ Admin
+                </small>
+              )}
+            </span>
             <span className="chat-time">{formatTime(chat.lastInteraction)}</span>
           </div>
           <div className="chat-last-msg">
@@ -249,7 +279,11 @@ const ChatsListPanel = ({
   </div>
 );
 
-const ActiveChatView = ({ selectedChat, onBack, onDeleteSingle, message, onMessageChange, onSendManual, sending }) => (
+const ActiveChatView = ({ selectedChat, onBack, onDeleteSingle, onToggleBotPause, message, onMessageChange, onSendManual, sending }) => {
+  const paused = isBotCurrentlyPaused(selectedChat);
+  const shortCode = selectedChat.shortId || (selectedChat._id ? selectedChat._id.slice(-4).toUpperCase() : '');
+
+  return (
   <>
     <div className="chat-header">
       <div className="header-info">
@@ -266,11 +300,33 @@ const ActiveChatView = ({ selectedChat, onBack, onDeleteSingle, message, onMessa
           <User size={24} />
         </div>
         <div className="header-title-wrap">
-          <h3>{selectedChat.customerName || selectedChat.customerNumber}</h3>
-          <span className="status">IA Activa (Monitoreando)</span>
+          <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {selectedChat.customerName || selectedChat.customerNumber}
+            {shortCode && (
+              <span style={{ fontSize: '12px', padding: '2px 8px', borderRadius: '8px', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', color: 'var(--accent-primary)' }}>
+                #{shortCode}
+              </span>
+            )}
+          </h3>
+          {paused ? (
+            <span className="status" style={{ color: '#f59e0b', fontWeight: '600' }}>
+              ⏸️ Bot en Pausa (Atención Admin hasta {formatPauseUntil(selectedChat.botPausedUntil)})
+            </span>
+          ) : (
+            <span className="status">IA Activa (Monitoreando)</span>
+          )}
         </div>
       </div>
-      <div className="header-actions">
+      <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <button
+          type="button"
+          className={paused ? 'btn-primary' : 'btn-secondary'}
+          style={{ padding: '6px 12px', fontSize: '12px', borderRadius: '8px' }}
+          onClick={() => onToggleBotPause(selectedChat, !paused)}
+          title={paused ? 'Reactivar respuestas automáticas del bot inmediatamente' : 'Pausar el bot por 40 minutos para atender manualmente'}
+        >
+          {paused ? '▶️ Reactivar Bot' : '⏸️ Pausar Bot'}
+        </button>
         <button 
           type="button" 
           className="icon-btn danger-action" 
@@ -318,7 +374,8 @@ const ActiveChatView = ({ selectedChat, onBack, onDeleteSingle, message, onMessa
       </button>
     </form>
   </>
-);
+  );
+};
 
 const Chats = () => {
   const { user } = useAuth();
@@ -526,6 +583,23 @@ const Chats = () => {
     );
   };
 
+  const handleToggleBotPause = async (chat, shouldPause) => {
+    if (!chat?._id) return;
+    try {
+      const config = { headers: { Authorization: `Bearer ${user.token}` } };
+      const { data } = await axios.patch(`/api/chat/${chat._id}/bot-status`, { paused: shouldPause, minutes: 40 }, config);
+      if (data.success && data.conversation) {
+        setConversations((prev) => prev.map((c) => (c._id === chat._id ? data.conversation : c)));
+        if (selectedChat?._id === chat._id) {
+          setSelectedChat(data.conversation);
+        }
+      }
+    } catch (error) {
+      console.error('Error actualizando estado del bot:', error);
+      alert('No se pudo cambiar el estado del bot.');
+    }
+  };
+
   const handleSendManual = async (e) => {
     e.preventDefault();
     if (sending || !message.trim() || !selectedChat || !selectedBranchId) return;
@@ -590,6 +664,7 @@ const Chats = () => {
             selectedChat={selectedChat}
             onBack={() => setSelectedChat(null)}
             onDeleteSingle={handleDeleteSingleChat}
+            onToggleBotPause={handleToggleBotPause}
             message={message}
             onMessageChange={setMessage}
             onSendManual={handleSendManual}

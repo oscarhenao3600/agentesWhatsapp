@@ -61,6 +61,15 @@ const branchAIConfigSchema = new mongoose.Schema({
     type: String,
     default: '¡Hola! ¿En qué puedo ayudarte hoy?'
   },
+  // --- ESCALAMIENTO AL ADMINISTRADOR Y PAUSA AUTOMÁTICA ---
+  branchAdminPhone: {
+    type: String,
+    default: '' // Número de WhatsApp del administrador de la sucursal (ej: 573113414361)
+  },
+  postOrderPauseMinutes: {
+    type: Number,
+    default: 40 // Minutos que el bot se hace a un lado tras confirmar un pedido (restaurantes/comercios)
+  },
   // --- MODO PRUEBAS & PASARELAS ---
   gatewayType: {
     type: String,

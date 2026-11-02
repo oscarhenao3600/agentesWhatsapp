@@ -100,6 +100,16 @@ const generateDynamicResponse = async (aiConfig, userMessage, history = [], extr
     Si el cliente en su mensaje indica o hace referencia a que envió o desea enviar un audio, nota de voz, imagen, foto, captura de pantalla o documento (ej: "te mandé un audio", "mira la captura", "revisa la foto"), recuérdale de forma sutil, cordial y breve que por este chat únicamente puedes procesar mensajes de texto y emojis, e invítalo amablemente a escribir los detalles de su consulta en texto.
   `;
 
+  const adminEscalationRule = `
+    REGLA DE ESCALAMIENTO AL ADMINISTRADOR (CUANDO NO TIENES LA INFORMACIÓN):
+    Si el cliente realiza una pregunta específica cuya respuesta NO se encuentra en las instrucciones base, ni en el catálogo/menú, ni en el historial de la conversación (por ejemplo: servicios especiales no listados, políticas no especificadas, descuentos especiales o detalles que desconoces):
+    1. NO inventes ni supongas datos.
+    2. Indícale amablemente al cliente que estás consultando su inquietud directamente con el administrador de la sucursal y que en breve le transmitirás la respuesta por este mismo chat.
+    3. AL FINAL de tu respuesta, incluye obligatoriamente un bloque JSON entre las etiquetas <ADMIN_QUERY_JSON> y </ADMIN_QUERY_JSON> con el siguiente formato exacto:
+    <ADMIN_QUERY_JSON>{"detected": true, "question": "Pregunta exacta o duda del cliente que requiere respuesta del administrador"}</ADMIN_QUERY_JSON>
+    Si sí tienes la información para responder o es un saludo/conversación normal dentro de tu conocimiento, NO incluyas la etiqueta <ADMIN_QUERY_JSON>.
+  `;
+
   const systemInstruction = `
     Actúa como un asistente para el negocio. Instrucciones: ${basePrompt}
     
@@ -113,6 +123,8 @@ const generateDynamicResponse = async (aiConfig, userMessage, history = [], extr
     ${conciseInstructions}
 
     ${textOnlyRule}
+
+    ${adminEscalationRule}
   `;
 
 

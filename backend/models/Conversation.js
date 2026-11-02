@@ -11,6 +11,28 @@ const conversationSchema = new mongoose.Schema({
     required: true
   },
   customerName: String,
+  shortId: {
+    type: String,
+    index: true
+  },
+  botPausedUntil: {
+    type: Date,
+    default: null
+  },
+  pauseReason: {
+    type: String,
+    enum: ['none', 'reservation_active', 'order_active', 'manual'],
+    default: 'none'
+  },
+  pendingAdminQueries: [{
+    question: String,
+    askedAt: {
+      type: Date,
+      default: Date.now
+    },
+    answeredAt: Date,
+    answer: String
+  }],
   messages: [{
     role: {
       type: String,
@@ -44,7 +66,16 @@ const conversationSchema = new mongoose.Schema({
   timestamps: true
 });
 
+// Generar shortId de 4 caracteres automáticamente si no existe
+conversationSchema.pre('save', function(next) {
+  if (!this.shortId && this._id) {
+    this.shortId = this._id.toString().slice(-4).toUpperCase();
+  }
+  next();
+});
+
 // Índice para búsqueda rápida por sucursal y cliente
 conversationSchema.index({ branch: 1, customerNumber: 1 });
+conversationSchema.index({ branch: 1, shortId: 1 });
 
 module.exports = mongoose.model('Conversation', conversationSchema);

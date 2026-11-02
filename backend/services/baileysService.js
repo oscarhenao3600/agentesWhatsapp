@@ -429,14 +429,33 @@ const initSession = async (branchId, initialQrCount = 0, forceNew = false) => {
           processedMsgIds.add(msgId);
           setTimeout(() => processedMsgIds.delete(msgId), 30000);
 
-          // Determinar tipo de contenido (texto vs multimedia)
+          // Determinar tipo de contenido (texto, catálogo de WhatsApp Business o multimedia)
           let messageText = '';
           let mediaType = null;
+          let quotedText = '';
+
+          const quotedMsg = content.extendedTextMessage?.contextInfo?.quotedMessage;
+          if (quotedMsg) {
+            quotedText = quotedMsg.conversation || quotedMsg.extendedTextMessage?.text || '';
+          }
 
           if (typeof content.conversation === 'string') {
             messageText = content.conversation;
           } else if (content.extendedTextMessage?.text) {
             messageText = content.extendedTextMessage.text;
+            if (quotedMsg?.productMessage?.product) {
+              const p = quotedMsg.productMessage.product;
+              const catalogTitle = p.title || 'Suite/Producto';
+              const catalogDesc = p.description ? ` (${p.description})` : '';
+              messageText = `[Consulta del catálogo "${catalogTitle}"${catalogDesc}]: ${messageText}`;
+            }
+          } else if (content.productMessage) {
+            const p = content.productMessage.product || {};
+            const bodyText = content.productMessage.body || content.productMessage.caption || '';
+            messageText = `[Consulta del catálogo "${p.title || 'Suite/Producto'}"${p.description ? ` (${p.description})` : ''}]: ${bodyText || 'Me interesa esta opción del catálogo.'}`;
+          } else if (content.orderMessage) {
+            const itemCount = content.orderMessage.itemCount || 1;
+            messageText = `[Selección del catálogo (${itemCount} ítem(s))]: ${content.orderMessage.message || 'Deseo consultar o reservar esta selección del catálogo.'}`;
           } else if (content.imageMessage) {
             mediaType = 'image';
             messageText = content.imageMessage.caption || '';
@@ -499,6 +518,7 @@ const initSession = async (branchId, initialQrCount = 0, forceNew = false) => {
             gateway: 'baileys',
             hasMedia: hasMedia,
             mediaType: mediaType,
+            quotedText: quotedText,
             replyCallback: async (replyText) => {
               console.log(`[Baileys] Enviando respuesta a ${remoteJid}...`);
               const sentMsg = await sock.sendMessage(
