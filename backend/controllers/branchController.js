@@ -3,6 +3,7 @@ const path = require('path');
 const Branch = require('../models/Branch');
 const BranchAIConfig = require('../models/BranchAIConfig');
 const Business = require('../models/Business');
+const { encrypt, isEncrypted } = require('../utils/encryption');
 
 const knowledgeFilesRoot = path.join(__dirname, '../.wwebjs_auth/knowledge_files');
 if (!fs.existsSync(knowledgeFilesRoot)) {
@@ -152,6 +153,31 @@ exports.getBranchDetails = async (req, res) => {
   }
 };
 
+const ALLOWED_AI_CONFIG_FIELDS = [
+  'aiProvider',
+  'aiModel',
+  'apiKey',
+  'temperature',
+  'additionalParams',
+  'businessType',
+  'personality',
+  'menuContent',
+  'basePrompt',
+  'welcomeMessage',
+  'branchAdminPhone',
+  'postOrderPauseMinutes',
+  'gatewayType',
+  'testMode',
+  'testPhoneNumber',
+  'conciseMode',
+  'maxOutputTokens',
+  'calendarSyncEnabled',
+  'googleCalendarId',
+  'googleServiceAccountEmail',
+  'googleCredentialsJson',
+  'isActive'
+];
+
 exports.updateBranchAI = async (req, res) => {
   try {
     const hasAccess = await validateBranchAccess(req.user, req.params.id);
@@ -159,21 +185,28 @@ exports.updateBranchAI = async (req, res) => {
       return res.status(403).json({ message: 'No tienes permisos para modificar esta sucursal' });
     }
 
-    let aiConfig = await BranchAIConfig.findOne({ branch: req.params.id });
-    
-    if (!aiConfig) {
-      // Si no existe, lo creamos
-      aiConfig = new BranchAIConfig({ branch: req.params.id, ...req.body });
-    } else {
-      // Actualizar campos (preservando knowledgeSources que se gestionan por sus endpoints dedicados)
-      Object.keys(req.body).forEach(key => {
-        if (key !== '_id' && key !== 'branch' && key !== 'knowledgeSources') {
-          aiConfig[key] = req.body[key];
+    const updateFields = {};
+    for (const key of ALLOWED_AI_CONFIG_FIELDS) {
+      if (Object.prototype.hasOwnProperty.call(req.body, key) && req.body[key] !== undefined) {
+        let val = req.body[key];
+        if ((key === 'apiKey' || key === 'googleCredentialsJson') && val && typeof val === 'string' && !isEncrypted(val)) {
+          val = encrypt(val);
         }
-      });
+        if (key === 'basePrompt' && (!val || !String(val).trim())) {
+          continue; // Evitar sobreescribir el prompt base con vacío en guardados parciales
+        }
+        updateFields[key] = val;
+      }
     }
 
-    await aiConfig.save();
+    const aiConfig = await BranchAIConfig.findOneAndUpdate(
+      { branch: req.params.id },
+      {
+        $set: updateFields,
+        $setOnInsert: { branch: req.params.id }
+      },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    );
 
     if (req.body.gatewayType && ['baileys', 'whatsapp_web', 'meta'].includes(req.body.gatewayType)) {
       await Branch.findByIdAndUpdate(req.params.id, { gatewayType: req.body.gatewayType });
@@ -183,6 +216,7 @@ exports.updateBranchAI = async (req, res) => {
     if (Array.isArray(aiConfigObj.knowledgeSources)) {
       aiConfigObj.knowledgeSources = sanitizeKnowledgeSources(aiConfigObj.knowledgeSources);
     }
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     res.json(aiConfigObj);
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -206,23 +240,28 @@ exports.testCalendarConfig = async (req, res) => {
       googleCredentialsJson: req.body.googleCredentialsJson || aiConfig?.googleCredentialsJson
     };
 
-    // Guardar automáticamente el ID y las credenciales proporcionadas en la BD para que no se pierdan al salir de la vista
-    if (aiConfig) {
-      aiConfig.calendarSyncEnabled = true;
-      if (req.body.googleCalendarId) {
-        aiConfig.googleCalendarId = req.body.googleCalendarId.trim();
-      }
-      if (req.body.googleCredentialsJson) {
-        aiConfig.googleCredentialsJson = req.body.googleCredentialsJson;
-        try {
-          const parsed = JSON.parse(req.body.googleCredentialsJson);
-          if (parsed.client_email) {
-            aiConfig.googleServiceAccountEmail = parsed.client_email;
-          }
-        } catch (e) {}
-      }
-      await aiConfig.save();
+    // Guardar automáticamente el ID y las credenciales proporcionadas en la BD de forma atómica
+    const calUpdate = { calendarSyncEnabled: true };
+    if (req.body.googleCalendarId) {
+      calUpdate.googleCalendarId = req.body.googleCalendarId.trim();
     }
+    if (req.body.googleCredentialsJson) {
+      calUpdate.googleCredentialsJson = isEncrypted(req.body.googleCredentialsJson)
+        ? req.body.googleCredentialsJson
+        : encrypt(req.body.googleCredentialsJson);
+      try {
+        const parsed = JSON.parse(req.body.googleCredentialsJson);
+        if (parsed.client_email) {
+          calUpdate.googleServiceAccountEmail = parsed.client_email;
+        }
+      } catch (e) {}
+    }
+
+    await BranchAIConfig.findOneAndUpdate(
+      { branch: branchId },
+      { $set: calUpdate, $setOnInsert: { branch: branchId } },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    );
 
     if (!testConfig.googleCredentialsJson) {
       return res.status(400).json({

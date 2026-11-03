@@ -103,7 +103,7 @@ const branchAIConfigSchema = new mongoose.Schema({
   }],
   basePrompt: {
     type: String,
-    required: [true, 'El prompt base para la IA es obligatorio']
+    default: 'Eres un asistente virtual amable y eficiente.'
   },
   welcomeMessage: {
     type: String,

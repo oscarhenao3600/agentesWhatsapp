@@ -330,93 +330,168 @@ const WhatsAppLinkerCard = ({
   );
 };
 
-const TestAndOptimizationCard = ({ config, setConfig }) => (
-  <div className="glass-card" style={{ border: config.testMode ? '1px solid #10b981' : '1px solid var(--border-color)', background: config.testMode ? 'rgba(16, 185, 129, 0.04)' : undefined }}>
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <Shield size={24} style={{ color: config.testMode ? '#10b981' : 'var(--accent-primary)' }} />
-        <div>
-          <h3 style={{ fontSize: '18px', margin: 0 }}>Modo Pruebas / Demostración Segura</h3>
-          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>
-            Aísla la prueba para que la IA solo responda al número del cliente o tester y no toque chats personales.
-          </p>
-        </div>
-      </div>
-      <label htmlFor="ai-test-mode-toggle" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px', background: 'var(--bg-secondary)', padding: '6px 14px', borderRadius: '20px', border: '1px solid var(--border-color)' }}>
-        <input 
-          id="ai-test-mode-toggle"
-          type="checkbox" 
-          checked={config.testMode} 
-          onChange={(e) => setConfig({ ...config, testMode: e.target.checked })}
-          style={{ width: '18px', height: '18px', accentColor: '#10b981' }}
-        />
-        <span style={{ color: config.testMode ? '#10b981' : 'var(--text-secondary)' }}>
-          {config.testMode ? '🛡️ Modo Pruebas Activo' : 'Modo Pruebas Inactivo'}
-        </span>
-      </label>
-    </div>
+const TestAndOptimizationCard = ({ config, setConfig, branchId, token }) => {
+  const [savingTest, setSavingTest] = useState(false);
+  const [testSavedMsg, setTestSavedMsg] = useState('');
+  const debounceTimerRef = useRef(null);
 
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '24px', alignItems: 'start' }}>
-      <div>
-        <label htmlFor="ai-test-phone" style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: '600' }}>
-          <Phone size={14} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'middle' }} />
-          Número Telefónico, Usuario o Nombre de WhatsApp para la Prueba
-        </label>
-        <input 
-          id="ai-test-phone"
-          type="text" 
-          className="input-field" 
-          placeholder="Ej: 3113414361, Oscar Henao o +57 311 341 4361"
-          value={config.testPhoneNumber}
-          onChange={(e) => setConfig({ ...config, testPhoneNumber: e.target.value })}
-        />
-        <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
-          {config.testMode ? (
-            <span style={{ color: '#10b981', fontWeight: '500' }}>
-              🔒 <strong>Protección Total:</strong> El bot responderá <strong>ÚNICAMENTE</strong> a los mensajes que coincidan con este número, nombre o usuario de WhatsApp (ej: <code>3113414361</code> o <code>Oscar Henao</code>). Todos los demás chats personales serán ignorados.
+  const persistTestFields = async (patch) => {
+    if (!branchId || !token) return;
+    setSavingTest(true);
+    try {
+      const authConfig = { headers: { Authorization: `Bearer ${token}` } };
+      await axios.put(`/api/branch/${branchId}/ai-config`, patch, authConfig);
+      setTestSavedMsg('Guardado en la sucursal ✓');
+      setTimeout(() => setTestSavedMsg(''), 3500);
+    } catch (err) {
+      console.error('Error guardando Modo Pruebas:', err);
+    } finally {
+      setSavingTest(false);
+    }
+  };
+
+  const scheduleTestSave = (patch) => {
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      persistTestFields(patch);
+    }, 600);
+  };
+
+  return (
+    <div className="glass-card" style={{ border: config.testMode ? '1px solid #10b981' : '1px solid var(--border-color)', background: config.testMode ? 'rgba(16, 185, 129, 0.04)' : undefined }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <Shield size={24} style={{ color: config.testMode ? '#10b981' : 'var(--accent-primary)' }} />
+          <div>
+            <h3 style={{ fontSize: '18px', margin: 0 }}>Modo Pruebas / Demostración Segura</h3>
+            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>
+              Aísla la prueba para que la IA solo responda al número del cliente o tester y no toque chats personales.
+            </p>
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          {testSavedMsg && (
+            <span style={{ fontSize: '12px', color: '#10b981', fontWeight: '600' }}>
+              {testSavedMsg}
             </span>
-          ) : (
-            <span>Ingresa el número, nombre o usuario desde el que escribirás para la demo. Si activas el switch, solo interactuará con este contacto.</span>
           )}
+          <label htmlFor="ai-test-mode-toggle" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px', background: 'var(--bg-secondary)', padding: '6px 14px', borderRadius: '20px', border: '1px solid var(--border-color)' }}>
+            <input 
+              id="ai-test-mode-toggle"
+              type="checkbox" 
+              checked={Boolean(config.testMode)} 
+              onChange={(e) => {
+                const checked = e.target.checked;
+                setConfig(prev => ({ ...prev, testMode: checked }));
+                persistTestFields({ testMode: checked, testPhoneNumber: config.testPhoneNumber || '' });
+              }}
+              style={{ width: '18px', height: '18px', accentColor: '#10b981' }}
+            />
+            <span style={{ color: config.testMode ? '#10b981' : 'var(--text-secondary)' }}>
+              {config.testMode ? '🛡️ Modo Pruebas Activo' : 'Modo Pruebas Inactivo'}
+            </span>
+          </label>
         </div>
       </div>
 
-      <div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-          <label htmlFor="ai-concise-mode" style={{ fontSize: '13px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Zap size={14} style={{ color: '#f59e0b' }} /> Respuestas Concretas (Ahorro de Mensajes Meta)
-          </label>
-          <input 
-            id="ai-concise-mode"
-            type="checkbox" 
-            checked={config.conciseMode} 
-            onChange={(e) => setConfig({ ...config, conciseMode: e.target.checked })}
-            style={{ width: '16px', height: '16px', accentColor: '#f59e0b' }}
-          />
-        </div>
-        <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '0 0 10px 0', lineHeight: '1.4' }}>
-          Limita las respuestas a 1-3 frases breves y directas, pidiendo los datos clave de una sola vez para cerrar pedidos/reservas sin intercambios innecesarios ni sobrecostos.
-        </p>
-        
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '24px', alignItems: 'start' }}>
         <div>
-          <label htmlFor="ai-max-tokens" style={{ display: 'block', marginBottom: '4px', fontSize: '12px', fontWeight: '600' }}>
-            Límite de Tokens por Respuesta: {config.maxOutputTokens || 250} tokens (~50-80 palabras)
+          <label htmlFor="ai-test-phone" style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: '600' }}>
+            <Phone size={14} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'middle' }} />
+            Número Telefónico, Usuario o Nombre de WhatsApp para la Prueba
           </label>
-          <input 
-            id="ai-max-tokens"
-            type="range" 
-            min="150" 
-            max="500" 
-            step="25" 
-            value={config.maxOutputTokens || 250}
-            onChange={(e) => setConfig({ ...config, maxOutputTokens: parseInt(e.target.value, 10) })}
-            style={{ width: '100%', accentColor: 'var(--accent-primary)' }}
-          />
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <input 
+              id="ai-test-phone"
+              type="text" 
+              className="input-field" 
+              placeholder="Ej: 3113414361, Oscar Henao o +57 311 341 4361"
+              value={config.testPhoneNumber || ''}
+              onChange={(e) => {
+                const val = e.target.value;
+                setConfig(prev => ({ ...prev, testPhoneNumber: val }));
+                scheduleTestSave({ testPhoneNumber: val, testMode: Boolean(config.testMode) });
+              }}
+              onBlur={(e) => {
+                if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+                persistTestFields({ testPhoneNumber: e.target.value, testMode: Boolean(config.testMode) });
+              }}
+            />
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={savingTest}
+              onClick={() => {
+                if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+                persistTestFields({
+                  testMode: Boolean(config.testMode),
+                  testPhoneNumber: config.testPhoneNumber || '',
+                  conciseMode: Boolean(config.conciseMode),
+                  maxOutputTokens: config.maxOutputTokens || 250
+                });
+              }}
+              style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '0 12px' }}
+              title="Guardar configuración de Modo Pruebas"
+            >
+              <Save size={14} /> {savingTest ? '...' : 'Guardar'}
+            </button>
+          </div>
+          <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
+            {config.testMode ? (
+              <span style={{ color: '#10b981', fontWeight: '500' }}>
+                🔒 <strong>Protección Total:</strong> El bot responderá <strong>ÚNICAMENTE</strong> a los mensajes que coincidan con este número, nombre o usuario de WhatsApp (ej: <code>3113414361</code> o <code>Oscar Henao</code>). Todos los demás chats personales serán ignorados.
+              </span>
+            ) : (
+              <span>Ingresa el número, nombre o usuario desde el que escribirás para la demo. Si activas el switch, solo interactuará con este contacto.</span>
+            )}
+          </div>
+        </div>
+
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+            <label htmlFor="ai-concise-mode" style={{ fontSize: '13px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Zap size={14} style={{ color: '#f59e0b' }} /> Respuestas Concretas (Ahorro de Mensajes Meta)
+            </label>
+            <input 
+              id="ai-concise-mode"
+              type="checkbox" 
+              checked={Boolean(config.conciseMode)} 
+              onChange={(e) => {
+                const checked = e.target.checked;
+                setConfig(prev => ({ ...prev, conciseMode: checked }));
+                persistTestFields({ conciseMode: checked });
+              }}
+              style={{ width: '16px', height: '16px', accentColor: '#f59e0b' }}
+            />
+          </div>
+          <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '0 0 10px 0', lineHeight: '1.4' }}>
+            Limita las respuestas a 1-3 frases breves y directas, pidiendo los datos clave de una sola vez para cerrar pedidos/reservas sin intercambios innecesarios ni sobrecostos.
+          </p>
+          
+          <div>
+            <label htmlFor="ai-max-tokens" style={{ display: 'block', marginBottom: '4px', fontSize: '12px', fontWeight: '600' }}>
+              Límite de Tokens por Respuesta: {config.maxOutputTokens || 250} tokens (~50-80 palabras)
+            </label>
+            <input 
+              id="ai-max-tokens"
+              type="range" 
+              min="150" 
+              max="500" 
+              step="25" 
+              value={config.maxOutputTokens || 250}
+              onChange={(e) => {
+                const tokens = parseInt(e.target.value, 10);
+                setConfig(prev => ({ ...prev, maxOutputTokens: tokens }));
+                scheduleTestSave({ maxOutputTokens: tokens });
+              }}
+              style={{ width: '100%', accentColor: 'var(--accent-primary)' }}
+            />
+          </div>
         </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 const CalendarGuideBox = () => (
   <div style={{ background: 'var(--bg-secondary)', padding: '16px', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '13px', lineHeight: '1.6' }}>
@@ -462,20 +537,22 @@ const CalendarSyncSettings = ({ config, setConfig, branchId, token }) => {
   const [showCalendarGuide, setShowCalendarGuide] = useState(false);
   const calendarFileInputRef = useRef(null);
   const testReqIdRef = useRef(0);
+  const calDebounceRef = useRef(null);
   const detectedEmail = getDetectedServiceAccountEmail(config.googleCredentialsJson);
 
-  const persistCalendarFields = async (overrides = {}) => {
+  const persistCalendarFields = async (overrides = null) => {
     if (!branchId || !token) return;
     setSavingCal(true);
     try {
       const authConfig = { headers: { Authorization: `Bearer ${token}` } };
-      const payload = {
-        calendarSyncEnabled: config.calendarSyncEnabled ?? true,
-        googleCalendarId: config.googleCalendarId || 'primary',
-        googleCredentialsJson: config.googleCredentialsJson || '',
-        googleServiceAccountEmail: config.googleServiceAccountEmail || detectedEmail || '',
-        ...overrides
-      };
+      const payload = overrides && Object.keys(overrides).length > 0
+        ? overrides
+        : {
+            calendarSyncEnabled: config.calendarSyncEnabled ?? true,
+            googleCalendarId: config.googleCalendarId || 'primary',
+            googleCredentialsJson: config.googleCredentialsJson || '',
+            googleServiceAccountEmail: config.googleServiceAccountEmail || detectedEmail || ''
+          };
       await axios.put(`/api/branch/${branchId}/ai-config`, payload, authConfig);
       setCalSavedMsg('Guardado en la sucursal ✓');
       setTimeout(() => setCalSavedMsg(''), 3500);
@@ -484,6 +561,13 @@ const CalendarSyncSettings = ({ config, setConfig, branchId, token }) => {
     } finally {
       setSavingCal(false);
     }
+  };
+
+  const scheduleCalendarSave = (patch) => {
+    if (calDebounceRef.current) clearTimeout(calDebounceRef.current);
+    calDebounceRef.current = setTimeout(() => {
+      persistCalendarFields(patch);
+    }, 600);
   };
 
   const handleCalendarFileUpload = (e) => {
@@ -573,8 +657,15 @@ const CalendarSyncSettings = ({ config, setConfig, branchId, token }) => {
             className="input-field" 
             placeholder="primary o tunegocio@gmail.com"
             value={config.googleCalendarId || 'primary'}
-            onChange={(e) => setConfig({ ...config, googleCalendarId: e.target.value })}
-            onBlur={(e) => persistCalendarFields({ googleCalendarId: e.target.value || 'primary' })}
+            onChange={(e) => {
+              const val = e.target.value;
+              setConfig(prev => ({ ...prev, googleCalendarId: val }));
+              scheduleCalendarSave({ googleCalendarId: val || 'primary' });
+            }}
+            onBlur={(e) => {
+              if (calDebounceRef.current) clearTimeout(calDebounceRef.current);
+              persistCalendarFields({ googleCalendarId: e.target.value || 'primary' });
+            }}
           />
           <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '6px', margin: 0 }}>
             Usa <code>primary</code> para tu calendario principal, o el correo / ID del calendario específico donde se agendarán las reservas.
@@ -634,8 +725,21 @@ const CalendarSyncSettings = ({ config, setConfig, branchId, token }) => {
           style={{ height: '90px', fontFamily: 'monospace', fontSize: '12px', resize: 'vertical' }}
           placeholder='{"type": "service_account", "project_id": "...", "private_key": "...", "client_email": "..."}'
           value={config.googleCredentialsJson || ''}
-          onChange={(e) => setConfig({ ...config, googleCredentialsJson: e.target.value })}
+          onChange={(e) => {
+            const val = e.target.value;
+            const email = getDetectedServiceAccountEmail(val);
+            setConfig(prev => ({
+              ...prev,
+              googleCredentialsJson: val,
+              googleServiceAccountEmail: email || prev.googleServiceAccountEmail || ''
+            }));
+            scheduleCalendarSave({
+              googleCredentialsJson: val,
+              googleServiceAccountEmail: email || config.googleServiceAccountEmail || ''
+            });
+          }}
           onBlur={(e) => {
+            if (calDebounceRef.current) clearTimeout(calDebounceRef.current);
             const val = e.target.value;
             const email = getDetectedServiceAccountEmail(val);
             persistCalendarFields({
@@ -1189,8 +1293,12 @@ const AIConfiguration = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [autoSaveMsg, setAutoSaveMsg] = useState('');
   const [branch, setBranch] = useState(null);
-  const [config, setConfig] = useState(DEFAULT_AI_CONFIG);
+  const [config, setConfigState] = useState(DEFAULT_AI_CONFIG);
+  const latestConfigRef = useRef(DEFAULT_AI_CONFIG);
+  const isDirtyRef = useRef(false);
+  const globalAutoSaveTimerRef = useRef(null);
 
   const [whatsappConnected, setWhatsappConnected] = useState(false);
   const [whatsappNumber, setWhatsappNumber] = useState('');
@@ -1198,6 +1306,40 @@ const AIConfiguration = () => {
   const [disconnecting, setDisconnecting] = useState(false);
   const qrTimerRef = useRef(null);
   const [knowledgeSources, setKnowledgeSources] = useState([]);
+
+  const flushPendingSave = async (customPayload = null) => {
+    if (!branchId || !user?.token) return;
+    if (globalAutoSaveTimerRef.current) {
+      clearTimeout(globalAutoSaveTimerRef.current);
+      globalAutoSaveTimerRef.current = null;
+    }
+    const payloadToSave = customPayload || latestConfigRef.current;
+    isDirtyRef.current = false;
+    try {
+      const authConfig = { headers: { Authorization: `Bearer ${user.token}` } };
+      await axios.put(`/api/branch/${branchId}/ai-config`, payloadToSave, authConfig);
+      setAutoSaveMsg('Cambios guardados automáticamente ✓');
+      setTimeout(() => setAutoSaveMsg(''), 3000);
+    } catch (err) {
+      console.error('Error en autoguardado de configuración IA:', err);
+    }
+  };
+
+  // Wrapper de setConfig que sincroniza latestConfigRef y agenda autoguardado tras cambios del usuario
+  const setConfig = (updater) => {
+    setConfigState(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      latestConfigRef.current = next;
+      return next;
+    });
+    isDirtyRef.current = true;
+    if (globalAutoSaveTimerRef.current) {
+      clearTimeout(globalAutoSaveTimerRef.current);
+    }
+    globalAutoSaveTimerRef.current = setTimeout(() => {
+      flushPendingSave();
+    }, 700);
+  };
 
   const startQrPolling = (authConfig) => {
     if (qrTimerRef.current) clearInterval(qrTimerRef.current);
@@ -1236,16 +1378,20 @@ const AIConfiguration = () => {
     let ignore = false;
     const authConfig = { headers: { Authorization: `Bearer ${user.token}` } };
 
-    axios.get(`/api/branch/${branchId}`, authConfig)
+    axios.get(`/api/branch/${branchId}`, { ...authConfig, params: { _t: Date.now() } })
       .then(({ data }) => {
         if (ignore) return;
         setBranch(data.branch);
         if (data.aiConfig) {
-          setConfig(prev => ({
-            ...prev,
-            ...data.aiConfig,
-            gatewayType: data.aiConfig.gatewayType || data.branch?.gatewayType || 'baileys'
-          }));
+          setConfigState(prev => {
+            const merged = {
+              ...prev,
+              ...data.aiConfig,
+              gatewayType: data.aiConfig.gatewayType || data.branch?.gatewayType || 'baileys'
+            };
+            latestConfigRef.current = merged;
+            return merged;
+          });
         }
 
         const fallbackConnected = data.branch?.whatsappConnected || false;
@@ -1255,7 +1401,11 @@ const AIConfiguration = () => {
           .then((gwRes) => {
             if (ignore) return;
             if (gwRes.data?.gatewayType) {
-              setConfig(prev => ({ ...prev, gatewayType: gwRes.data.gatewayType }));
+              setConfigState(prev => {
+                const merged = { ...prev, gatewayType: gwRes.data.gatewayType };
+                latestConfigRef.current = merged;
+                return merged;
+              });
             }
             if (gwRes.data?.status === 'connected') {
               setWhatsappConnected(true);
@@ -1283,7 +1433,7 @@ const AIConfiguration = () => {
           setKnowledgeSources(data.aiConfig.knowledgeSources);
         }
 
-        axios.get(`/api/branch/${branchId}/sources`, authConfig)
+        axios.get(`/api/branch/${branchId}/sources`, { ...authConfig, params: { _t: Date.now() } })
           .then((resSources) => {
             if (!ignore && Array.isArray(resSources.data)) {
               setKnowledgeSources(resSources.data);
@@ -1305,15 +1455,23 @@ const AIConfiguration = () => {
     return () => {
       ignore = true;
       if (qrTimerRef.current) clearInterval(qrTimerRef.current);
+      if (globalAutoSaveTimerRef.current) clearTimeout(globalAutoSaveTimerRef.current);
     };
   }, [branchId, user?.token]);
 
   const handleSave = async () => {
     if (saving) return;
+    if (globalAutoSaveTimerRef.current) {
+      clearTimeout(globalAutoSaveTimerRef.current);
+      globalAutoSaveTimerRef.current = null;
+    }
     setSaving(true);
     try {
       const authConfig = { headers: { Authorization: `Bearer ${user.token}` } };
-      await axios.put(`/api/branch/${branchId}/ai-config`, config, authConfig);
+      await axios.put(`/api/branch/${branchId}/ai-config`, latestConfigRef.current, authConfig);
+      isDirtyRef.current = false;
+      setAutoSaveMsg('Cambios guardados ✓');
+      setTimeout(() => setAutoSaveMsg(''), 3000);
       alert('Configuración de Inteligencia Artificial guardada correctamente');
     } catch (error) {
       console.error('Error saving AI config:', error);
@@ -1321,6 +1479,13 @@ const AIConfiguration = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleBack = async () => {
+    if (isDirtyRef.current || globalAutoSaveTimerRef.current) {
+      await flushPendingSave();
+    }
+    navigate(-1);
   };
 
   const handleConnectWhatsApp = async (forceNew = false) => {
@@ -1373,7 +1538,7 @@ const AIConfiguration = () => {
 
   return (
     <div className="container" style={{ paddingBottom: '60px' }}>
-      <button type="button" onClick={() => navigate(-1)} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
+      <button type="button" onClick={handleBack} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
         <ArrowLeft size={18} /> Volver
       </button>
 
@@ -1382,7 +1547,12 @@ const AIConfiguration = () => {
           <h2 style={{ fontSize: '28px', mdFontSize: '32px' }}>Ajustes del Agente AI: {branch?.name}</h2>
           <p style={{ color: 'var(--text-secondary)' }}>Define las reglas de negocio, vincula el canal de WhatsApp y alimenta el conocimiento RAG en caliente</p>
         </div>
-        <div className="page-header-actions">
+        <div className="page-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {autoSaveMsg && (
+            <span style={{ fontSize: '13px', color: '#10b981', fontWeight: '600' }}>
+              {autoSaveMsg}
+            </span>
+          )}
           <button type="button" onClick={handleSave} className="btn-primary" disabled={saving} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Save size={18} /> {saving ? 'Guardando...' : 'Guardar Ajustes'}
           </button>
@@ -1405,7 +1575,12 @@ const AIConfiguration = () => {
           />
         </div>
 
-        <TestAndOptimizationCard config={config} setConfig={setConfig} />
+        <TestAndOptimizationCard
+          config={config}
+          setConfig={setConfig}
+          branchId={branchId}
+          token={user?.token}
+        />
 
         <CalendarIntegrationCard 
           config={config}
