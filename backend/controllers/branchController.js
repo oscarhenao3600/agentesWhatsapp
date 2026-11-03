@@ -198,7 +198,7 @@ exports.testCalendarConfig = async (req, res) => {
     }
 
     const { testCalendarConnection } = require('../services/googleCalendarService');
-    const aiConfig = await BranchAIConfig.findOne({ branch: branchId });
+    let aiConfig = await BranchAIConfig.findOne({ branch: branchId });
 
     // Permite probar con datos enviados directamente en el body (antes de guardar) o los guardados en BD
     const testConfig = {
@@ -206,10 +206,28 @@ exports.testCalendarConfig = async (req, res) => {
       googleCredentialsJson: req.body.googleCredentialsJson || aiConfig?.googleCredentialsJson
     };
 
+    // Guardar automáticamente el ID y las credenciales proporcionadas en la BD para que no se pierdan al salir de la vista
+    if (aiConfig) {
+      aiConfig.calendarSyncEnabled = true;
+      if (req.body.googleCalendarId) {
+        aiConfig.googleCalendarId = req.body.googleCalendarId.trim();
+      }
+      if (req.body.googleCredentialsJson) {
+        aiConfig.googleCredentialsJson = req.body.googleCredentialsJson;
+        try {
+          const parsed = JSON.parse(req.body.googleCredentialsJson);
+          if (parsed.client_email) {
+            aiConfig.googleServiceAccountEmail = parsed.client_email;
+          }
+        } catch (e) {}
+      }
+      await aiConfig.save();
+    }
+
     if (!testConfig.googleCredentialsJson) {
       return res.status(400).json({
         success: false,
-        error: 'Debes ingresar el JSON de credenciales de la Cuenta de Servicio de Google.'
+        error: 'Se guardó el ID del calendario, pero debes ingresar o cargar el archivo JSON de credenciales de la Cuenta de Servicio de Google para probar la conexión.'
       });
     }
 

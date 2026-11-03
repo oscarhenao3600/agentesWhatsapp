@@ -456,18 +456,42 @@ const CalendarTestResultBadge = ({ result }) => {
 
 const CalendarSyncSettings = ({ config, setConfig, branchId, token }) => {
   const [submitting, setSubmitting] = useState(false);
+  const [savingCal, setSavingCal] = useState(false);
+  const [calSavedMsg, setCalSavedMsg] = useState('');
   const [calendarTestResult, setCalendarTestResult] = useState(null);
   const [showCalendarGuide, setShowCalendarGuide] = useState(false);
   const calendarFileInputRef = useRef(null);
   const testReqIdRef = useRef(0);
   const detectedEmail = getDetectedServiceAccountEmail(config.googleCredentialsJson);
 
+  const persistCalendarFields = async (overrides = {}) => {
+    if (!branchId || !token) return;
+    setSavingCal(true);
+    try {
+      const authConfig = { headers: { Authorization: `Bearer ${token}` } };
+      const payload = {
+        calendarSyncEnabled: config.calendarSyncEnabled ?? true,
+        googleCalendarId: config.googleCalendarId || 'primary',
+        googleCredentialsJson: config.googleCredentialsJson || '',
+        googleServiceAccountEmail: config.googleServiceAccountEmail || detectedEmail || '',
+        ...overrides
+      };
+      await axios.put(`/api/branch/${branchId}/ai-config`, payload, authConfig);
+      setCalSavedMsg('Guardado en la sucursal ✓');
+      setTimeout(() => setCalSavedMsg(''), 3500);
+    } catch (err) {
+      console.error('Error guardando ajustes de Google Calendar:', err);
+    } finally {
+      setSavingCal(false);
+    }
+  };
+
   const handleCalendarFileUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
         const jsonContent = event.target.result;
         const parsed = JSON.parse(jsonContent);
@@ -477,12 +501,20 @@ const CalendarSyncSettings = ({ config, setConfig, branchId, token }) => {
           return;
         }
 
+        const nextEmail = parsed.client_email || '';
         setConfig(prev => ({
           ...prev,
+          calendarSyncEnabled: true,
           googleCredentialsJson: jsonContent,
-          googleServiceAccountEmail: parsed.client_email || ''
+          googleServiceAccountEmail: nextEmail
         }));
         setCalendarTestResult(null);
+
+        await persistCalendarFields({
+          calendarSyncEnabled: true,
+          googleCredentialsJson: jsonContent,
+          googleServiceAccountEmail: nextEmail
+        });
       } catch {
         alert('El archivo no contiene un formato JSON válido.');
       }
@@ -542,6 +574,7 @@ const CalendarSyncSettings = ({ config, setConfig, branchId, token }) => {
             placeholder="primary o tunegocio@gmail.com"
             value={config.googleCalendarId || 'primary'}
             onChange={(e) => setConfig({ ...config, googleCalendarId: e.target.value })}
+            onBlur={(e) => persistCalendarFields({ googleCalendarId: e.target.value || 'primary' })}
           />
           <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '6px', margin: 0 }}>
             Usa <code>primary</code> para tu calendario principal, o el correo / ID del calendario específico donde se agendarán las reservas.
@@ -602,12 +635,20 @@ const CalendarSyncSettings = ({ config, setConfig, branchId, token }) => {
           placeholder='{"type": "service_account", "project_id": "...", "private_key": "...", "client_email": "..."}'
           value={config.googleCredentialsJson || ''}
           onChange={(e) => setConfig({ ...config, googleCredentialsJson: e.target.value })}
+          onBlur={(e) => {
+            const val = e.target.value;
+            const email = getDetectedServiceAccountEmail(val);
+            persistCalendarFields({
+              googleCredentialsJson: val,
+              googleServiceAccountEmail: email || config.googleServiceAccountEmail || ''
+            });
+          }}
         />
       </div>
 
       {showCalendarGuide && <CalendarGuideBox />}
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
         <button 
           type="button" 
           className="btn-primary"
@@ -616,8 +657,25 @@ const CalendarSyncSettings = ({ config, setConfig, branchId, token }) => {
           style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#3b82f6' }}
         >
           {submitting ? <RefreshCw size={16} className="spin" /> : <Calendar size={16} />}
-          {submitting ? 'Verificando con Google...' : 'Probar Conexión con Google Calendar'}
+          {submitting ? 'Verificando y Guardando...' : 'Probar y Guardar Google Calendar'}
         </button>
+
+        <button
+          type="button"
+          className="btn-secondary"
+          onClick={() => persistCalendarFields()}
+          disabled={savingCal}
+          style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}
+        >
+          <Save size={15} />
+          {savingCal ? 'Guardando...' : 'Guardar Datos de Calendar'}
+        </button>
+
+        {calSavedMsg && (
+          <span style={{ fontSize: '12px', color: '#10b981', fontWeight: '600' }}>
+            {calSavedMsg}
+          </span>
+        )}
 
         <CalendarTestResultBadge result={calendarTestResult} />
       </div>
@@ -649,7 +707,21 @@ const CalendarIntegrationCard = ({ config, setConfig, branchId, token }) => {
             id="ai-calendar-sync-toggle"
             type="checkbox" 
             checked={isEnabled} 
-            onChange={(e) => setConfig({ ...config, calendarSyncEnabled: e.target.checked })}
+            onChange={async (e) => {
+              const checked = e.target.checked;
+              setConfig({ ...config, calendarSyncEnabled: checked });
+              if (branchId && token) {
+                try {
+                  await axios.put(
+                    `/api/branch/${branchId}/ai-config`,
+                    { calendarSyncEnabled: checked },
+                    { headers: { Authorization: `Bearer ${token}` } }
+                  );
+                } catch (err) {
+                  console.error('Error guardando estado de Google Calendar:', err);
+                }
+              }
+            }}
             style={{ width: '18px', height: '18px', accentColor: '#3b82f6' }}
           />
           <span style={{ color: isEnabled ? '#3b82f6' : 'var(--text-secondary)' }}>

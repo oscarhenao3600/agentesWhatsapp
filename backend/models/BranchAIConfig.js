@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { encrypt, decrypt } = require('../utils/encryption');
+const { encrypt, decrypt, isEncrypted } = require('../utils/encryption');
 
 const branchAIConfigSchema = new mongoose.Schema({
   branch: {
@@ -20,8 +20,7 @@ const branchAIConfigSchema = new mongoose.Schema({
   apiKey: {
     type: String,
     set: function(value) {
-      // Solo encriptar si es un valor nuevo y no está ya encriptado (formato iv:encrypted)
-      if (value && !value.includes(':')) {
+      if (value && !isEncrypted(value)) {
         return encrypt(value);
       }
       return value;
@@ -158,7 +157,7 @@ const branchAIConfigSchema = new mongoose.Schema({
     type: String, // JSON de la Cuenta de Servicio de Google Cloud (encriptado con AES-256)
     default: '',
     set: function(value) {
-      if (value && !value.includes(':')) {
+      if (value && !isEncrypted(value)) {
         return encrypt(value);
       }
       return value;
