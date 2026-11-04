@@ -110,8 +110,176 @@ const testCalendarConnection = async (aiConfig) => {
   }
 };
 
+const BOGOTA_TZ = 'America/Bogota';
+
+const MONTH_NAME_MAP = {
+  enero: 1, ene: 1, january: 1, jan: 1, janvier: 1,
+  febrero: 2, feb: 2, february: 2, fevrier: 2, février: 2,
+  marzo: 3, mar: 3, march: 3, mars: 3,
+  abril: 4, abr: 4, april: 4, apr: 4, avril: 4,
+  mayo: 5, may: 5, mai: 5,
+  junio: 6, jun: 6, june: 6, juin: 6,
+  julio: 7, jul: 7, july: 7, juillet: 7,
+  agosto: 8, ago: 8, august: 8, aug: 8, aout: 8, août: 8,
+  septiembre: 9, setiembre: 9, sep: 9, sept: 9, september: 9, septembre: 9,
+  octubre: 10, oct: 10, october: 10, octobre: 10,
+  noviembre: 11, nov: 11, november: 11, novembre: 11,
+  diciembre: 12, dic: 12, december: 12, dec: 12, decembre: 12, décembre: 12
+};
+
 /**
- * Consulta los eventos ocupados en el calendario en un rango de fechas
+ * Convierte una fecha o ISO string a YYYY-MM-DD en zona horaria America/Bogota sin desfase UTC
+ */
+const toBogotaDateStr = (val) => {
+  if (!val) return '';
+  const str = String(val).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    return str;
+  }
+  const d = new Date(str);
+  if (isNaN(d.getTime())) return '';
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: BOGOTA_TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(d);
+};
+
+/**
+ * Suma o resta días a una fecha YYYY-MM-DD de forma segura (sin desfase de zona horaria)
+ */
+const addDaysToDateStr = (ymd, days) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return ymd;
+  const [y, m, d] = ymd.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + days, 12, 0, 0));
+  return dt.toISOString().slice(0, 10);
+};
+
+/**
+ * Formatea YYYY-MM-DD en texto legible en español (ej: "sábado 7 de noviembre de 2026 (2026-11-07)")
+ */
+const formatHumanDateEs = (ymd) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return ymd;
+  const [y, m, d] = ymd.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+  const human = new Intl.DateTimeFormat('es-CO', {
+    timeZone: 'UTC',
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  }).format(dt);
+  return `${human} (${ymd})`;
+};
+
+/**
+ * Detecta si el resumen de un evento es una nota operativa interna (deuda, masaje, decoración, transporte, mascota)
+ * que no representa por sí misma un bloqueo de habitación adicional.
+ */
+const isAuxiliaryCalendarNote = (summary = '') => {
+  const s = String(summary).trim();
+  if (!s) return false;
+  return /\bdebe\b|\bdecor|\bmasaje|\brelajante|\btransporte|\bmascota|\bcortes[ií]a/i.test(s);
+};
+
+/**
+ * Identifica a qué suite/cabaña corresponde el resumen de un evento (ej. Noire, Blanc)
+ */
+const detectEventSuite = (summary = '') => {
+  const s = String(summary || '');
+  const hasNoire = /\bnoire\b/i.test(s);
+  const hasBlanc = /\bblanc\b/i.test(s);
+  if (hasNoire && hasBlanc) return ['Noire', 'Blanc'];
+  if (hasNoire) return ['Noire'];
+  if (hasBlanc) return ['Blanc'];
+  return ['General'];
+};
+
+/**
+ * Extrae las fechas (YYYY-MM-DD) por las que el usuario está consultando en su mensaje o historial reciente
+ */
+const extractQueriedDatesFromText = (text = '', referenceDate = new Date()) => {
+  if (!text) return [];
+  const norm = String(text)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  const refYmd = toBogotaDateStr(referenceDate) || new Date().toISOString().slice(0, 10);
+  const [refYear, refMonth] = refYmd.split('-').map(Number);
+  const foundDates = new Set();
+
+  const resolveYear = (monthNum, explicitYear) => {
+    if (explicitYear) {
+      return explicitYear < 100 ? 2000 + explicitYear : explicitYear;
+    }
+    // Si el mes consultado es anterior al mes actual por más de 2 meses, asumir próximo año; de lo contrario año actual
+    if (monthNum < refMonth - 1) {
+      return refYear + 1;
+    }
+    return refYear;
+  };
+
+  const addSafeYmd = (year, month, day) => {
+    if (month < 1 || month > 12 || day < 1 || day > 31) return;
+    const yStr = String(year).padStart(4, '0');
+    const mStr = String(month).padStart(2, '0');
+    const dStr = String(day).padStart(2, '0');
+    foundDates.add(`${yStr}-${mStr}-${dStr}`);
+  };
+
+  // 1. Formato ISO YYYY-MM-DD
+  for (const m of norm.matchAll(/\b(20\d{2})-(0?[1-9]|1[0-2])-(0?[1-9]|[12]\d|3[01])\b/g)) {
+    addSafeYmd(Number(m[1]), Number(m[2]), Number(m[3]));
+  }
+
+  // 2. Rangos con nombre de mes: "del 7 al 9 de noviembre", "7 y 8 de noviembre", "entre el 7 y el 10 de noviembre"
+  const monthNamesPattern = Object.keys(MONTH_NAME_MAP).join('|');
+  const rangeRegex = new RegExp(`\\b(\\d{1,2})\\s*(?:al|a|y|hasta(?:\\s+el)?|-)\\s*(\\d{1,2})\\s*(?:de\\s+|d[e']\\s*)?(${monthNamesPattern})(?:\\s*(?:de|del)?\\s*(20\\d{2}))?\\b`, 'gi');
+  for (const m of norm.matchAll(rangeRegex)) {
+    const d1 = Number(m[1]);
+    const d2 = Number(m[2]);
+    const monthNum = MONTH_NAME_MAP[m[3]];
+    const year = resolveYear(monthNum, m[4] ? Number(m[4]) : null);
+    if (monthNum && d1 >= 1 && d2 >= d1 && (d2 - d1) <= 15) {
+      for (let d = d1; d <= d2; d++) {
+        addSafeYmd(year, monthNum, d);
+      }
+    }
+  }
+
+  // 3. Día + Mes: "7 de noviembre", "07 nov", "7 noviembre 2026"
+  const dayMonthRegex = new RegExp(`\\b(\\d{1,2})\\s*(?:de\\s+|d[e']\\s*|\\/|-|\\s)\\s*(${monthNamesPattern})(?:\\s*(?:de|del|,)?\\s*(20\\d{2}))?\\b`, 'gi');
+  for (const m of norm.matchAll(dayMonthRegex)) {
+    const day = Number(m[1]);
+    const monthNum = MONTH_NAME_MAP[m[2]];
+    const year = resolveYear(monthNum, m[3] ? Number(m[3]) : null);
+    if (monthNum) addSafeYmd(year, monthNum, day);
+  }
+
+  // 4. Mes + Día: "noviembre 7", "november 7th"
+  const monthDayRegex = new RegExp(`\\b(${monthNamesPattern})\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:\\s*(?:de|del|,)?\\s*(20\\d{2}))?\\b`, 'gi');
+  for (const m of norm.matchAll(monthDayRegex)) {
+    const monthNum = MONTH_NAME_MAP[m[1]];
+    const day = Number(m[2]);
+    const year = resolveYear(monthNum, m[3] ? Number(m[3]) : null);
+    if (monthNum) addSafeYmd(year, monthNum, day);
+  }
+
+  // 5. Formato numérico DD/MM/YYYY o DD/MM
+  for (const m of norm.matchAll(/\b(0?[1-9]|[12]\d|3[01])[\/\-](0?[1-9]|1[0-2])(?:[\/\-](20\d{2}|\d{2}))?\b/g)) {
+    const day = Number(m[1]);
+    const monthNum = Number(m[2]);
+    const year = resolveYear(monthNum, m[3] ? Number(m[3]) : null);
+    addSafeYmd(year, monthNum, day);
+  }
+
+  return [...foundDates].sort();
+};
+
+/**
+ * Consulta los eventos ocupados en el calendario en un rango amplio de fechas (por defecto 365 días)
  */
 const getCalendarBusyRanges = async (aiConfig, startDate, endDate) => {
   try {
@@ -119,23 +287,29 @@ const getCalendarBusyRanges = async (aiConfig, startDate, endDate) => {
 
     const { calendar, calendarId } = getCalendarClient(aiConfig);
 
-    const timeMin = startDate ? new Date(startDate).toISOString() : new Date().toISOString();
-    const timeMax = endDate ? new Date(endDate).toISOString() : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    // Iniciar 1 día atrás para cubrir estadías en curso y consultar hasta 365 días hacia adelante
+    const defaultStart = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const defaultEnd = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+
+    const timeMin = startDate ? new Date(startDate).toISOString() : defaultStart.toISOString();
+    const timeMax = endDate ? new Date(endDate).toISOString() : defaultEnd.toISOString();
 
     const response = await calendar.events.list({
       calendarId: calendarId,
       timeMin: timeMin,
       timeMax: timeMax,
+      maxResults: 2500,
       singleEvents: true,
       orderBy: 'startTime'
     });
 
-    const items = response.data.items || [];
+    const items = (response.data.items || []).filter(ev => ev.status !== 'cancelled');
     return items.map(ev => ({
       id: ev.id,
       summary: ev.summary || 'Ocupado',
       start: ev.start?.dateTime || ev.start?.date,
-      end: ev.end?.dateTime || ev.end?.date
+      end: ev.end?.dateTime || ev.end?.date,
+      isAllDay: Boolean(ev.start?.date && !ev.start?.dateTime)
     }));
   } catch (error) {
     console.warn('[GoogleCalendar] No se pudieron obtener rangos ocupados:', error.message);
@@ -144,7 +318,173 @@ const getCalendarBusyRanges = async (aiConfig, startDate, endDate) => {
 };
 
 /**
- * Crea un evento de reservación en Google Calendar
+ * Construye un mapa de ocupación noche por noche y genera el resumen estructurado para el prompt de IA
+ */
+const buildOccupancyByNight = (busyEvents = []) => {
+  const nightsMap = new Map(); // YYYY-MM-DD -> Set('Noire' | 'Blanc' | 'General')
+
+  for (const ev of busyEvents) {
+    if (!ev || !ev.start) continue;
+    if (isAuxiliaryCalendarNote(ev.summary)) continue;
+
+    const startYmd = toBogotaDateStr(ev.start);
+    const endYmd = ev.end ? toBogotaDateStr(ev.end) : addDaysToDateStr(startYmd, 1);
+    if (!startYmd) continue;
+
+    const suites = detectEventSuite(ev.summary);
+
+    // En reservas de alojamiento, las noches ocupadas van desde startYmd (Check-in) hasta el día anterior a endYmd (Check-out)
+    let cursor = startYmd;
+    let safetyCount = 0;
+    if (endYmd > startYmd) {
+      while (cursor < endYmd && safetyCount < 60) {
+        if (!nightsMap.has(cursor)) nightsMap.set(cursor, new Set());
+        const set = nightsMap.get(cursor);
+        suites.forEach(s => set.add(s));
+        cursor = addDaysToDateStr(cursor, 1);
+        safetyCount++;
+      }
+    } else {
+      if (!nightsMap.has(startYmd)) nightsMap.set(startYmd, new Set());
+      const set = nightsMap.get(startYmd);
+      suites.forEach(s => set.add(s));
+    }
+  }
+
+  return nightsMap;
+};
+
+/**
+ * Genera el reporte detallado de disponibilidad para inyectar a la IA, destacando las fechas consultadas por el cliente
+ */
+const formatCalendarAvailabilityForPrompt = (busyEvents = [], { userMessage = '', history = [], aiConfig = null } = {}) => {
+  const todayYmd = toBogotaDateStr(new Date());
+  const todayHuman = formatHumanDateEs(todayYmd);
+
+  const nightsMap = buildOccupancyByNight(busyEvents);
+
+  // Detectar si el negocio maneja las suites Noire y Blanc
+  const promptText = `${aiConfig?.basePrompt || ''} ${aiConfig?.menuContent || ''}`;
+  const isNoireBlancHotel = /\bnoire\b/i.test(promptText) && /\bblanc\b/i.test(promptText);
+
+  const describeNightStatus = (ymd) => {
+    const occupiedSet = nightsMap.get(ymd) || new Set();
+    if (isNoireBlancHotel) {
+      const noireBusy = occupiedSet.has('Noire') || occupiedSet.has('General');
+      const blancBusy = occupiedSet.has('Blanc') || occupiedSet.has('General');
+
+      if (noireBusy && blancBusy) {
+        return {
+          fullyBooked: true,
+          summaryLine: `❌ SIN DISPONIBILIDAD (Ambas suites: Noire OCUPADA y Blanc OCUPADA)`
+        };
+      }
+      if (noireBusy && !blancBusy) {
+        return {
+          fullyBooked: false,
+          summaryLine: `⚠️ DISPONIBILIDAD PARCIAL: Suite Noire OCUPADA | ✅ Suite Blanc DISPONIBLE`
+        };
+      }
+      if (!noireBusy && blancBusy) {
+        return {
+          fullyBooked: false,
+          summaryLine: `⚠️ DISPONIBILIDAD PARCIAL: Suite Blanc OCUPADA | ✅ Suite Noire DISPONIBLE`
+        };
+      }
+      return {
+        fullyBooked: false,
+        summaryLine: `✅ TOTALMENTE DISPONIBLE (Suite Noire DISPONIBLE y Suite Blanc DISPONIBLE)`
+      };
+    }
+
+    if (occupiedSet.size > 0) {
+      return {
+        fullyBooked: true,
+        summaryLine: `❌ OCUPADO (${[...occupiedSet].join(', ')})`
+      };
+    }
+    return {
+      fullyBooked: false,
+      summaryLine: `✅ DISPONIBLE`
+    };
+  };
+
+  // Extraer fechas mencionadas en el mensaje actual y en los últimos mensajes de la conversación
+  const recentText = [
+    ...history.slice(-4).map(m => m.content || ''),
+    userMessage || ''
+  ].join(' ');
+  const queriedDates = extractQueriedDatesFromText(recentText, new Date());
+
+  const lines = [];
+  lines.push(`📅 FECHA ACTUAL DEL SISTEMA (Colombia): ${todayHuman}`);
+  if (isNoireBlancHotel) {
+    lines.push(`🏨 UNIDADES DEL ALOJAMIENTO: Este hotel cuenta ÚNICAMENTE con 2 suites en total: Suite Noire y Suite Blanc.`);
+    lines.push(`⚠️ REGLA DE OCUPACIÓN POR NOCHE: Cada fecha listada corresponde a la NOCHE de hospedaje (Check-in a las 3:00 PM de ese día y Check-out a las 12:00 PM del día siguiente). Si para una noche tanto Noire como Blanc aparecen OCUPADAS, significa que NO HAY NINGUNA CABAÑA DISPONIBLE para esa noche.`);
+  }
+
+  if (queriedDates.length > 0) {
+    lines.push(`\n🎯 VERIFICACIÓN EXACTA PARA LAS FECHAS CONSULTADAS POR EL CLIENTE:`);
+    for (const qYmd of queriedDates) {
+      const nextYmd = addDaysToDateStr(qYmd, 1);
+      const status = describeNightStatus(qYmd);
+      lines.push(`  • Noche del ${formatHumanDateEs(qYmd)} [Check-in ${qYmd} -> Check-out ${nextYmd}]: ${status.summaryLine}`);
+
+      // Si está totalmente ocupada, buscar las fechas cercanas disponibles para sugerirle al cliente
+      if (status.fullyBooked) {
+        const nearbyAvailable = [];
+        for (let offset of [-2, -1, 1, 2, 3, 4, 7]) {
+          const candYmd = addDaysToDateStr(qYmd, offset);
+          if (candYmd >= todayYmd) {
+            const candStatus = describeNightStatus(candYmd);
+            if (!candStatus.fullyBooked) {
+              nearbyAvailable.push(`${formatHumanDateEs(candYmd)} (${candStatus.summaryLine})`);
+            }
+          }
+          if (nearbyAvailable.length >= 3) break;
+        }
+        if (nearbyAvailable.length > 0) {
+          lines.push(`    💡 Fechas cercanas con disponibilidad para ofrecer como alternativa: ${nearbyAvailable.join(' | ')}`);
+        }
+      }
+    }
+  }
+
+  // Listar todas las noches con ocupación registrada desde hoy en adelante
+  const occupiedDatesSorted = [...nightsMap.keys()].filter(d => d >= todayYmd).sort();
+  if (occupiedDatesSorted.length > 0) {
+    lines.push(`\n📋 REGISTRO DE NOCHES CON OCUPACIÓN EN GOOGLE CALENDAR (Las noches no listadas aquí tienen ambas suites disponibles):`);
+    for (const ymd of occupiedDatesSorted.slice(0, 120)) {
+      const status = describeNightStatus(ymd);
+      lines.push(`  - Noche ${ymd} (${formatHumanDateEs(ymd)}): ${status.summaryLine}`);
+    }
+  } else {
+    lines.push(`\n📋 Actualmente no hay noches ocupadas registradas a partir de hoy (${todayYmd}).`);
+  }
+
+  return lines.join('\n');
+};
+
+/**
+ * Convierte una fecha de entrada/salida (YYYY-MM-DD o ISO) en un Date con la hora oficial de Check-In (15:00) o Check-Out (12:00) en Colombia (-05:00)
+ */
+const parseHotelBogotaDateTime = (rawDate, defaultHour = 15) => {
+  if (!rawDate) return null;
+  const str = String(rawDate).trim();
+  const hStr = String(defaultHour).padStart(2, '0');
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    return new Date(`${str}T${hStr}:00:00-05:00`);
+  }
+  if (/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}/.test(str)) {
+    const normalized = str.replace(/\s+/, 'T');
+    return new Date(`${normalized}:00-05:00`);
+  }
+  const parsed = new Date(str);
+  return isNaN(parsed.getTime()) ? null : parsed;
+};
+
+/**
+ * Crea un evento de reservación en Google Calendar (validando previamente que no esté totalmente ocupado)
  */
 const createReservationEvent = async (aiConfig, reservationData, customerPhone = '') => {
   try {
@@ -160,16 +500,38 @@ const createReservationEvent = async (aiConfig, reservationData, customerPhone =
     const total = reservationData.total || 0;
     const notes = reservationData.notes || '';
 
-    // Determinar fechas de inicio y fin
-    let checkInDate = reservationData.checkIn ? new Date(reservationData.checkIn) : new Date();
-    if (isNaN(checkInDate.getTime())) checkInDate = new Date();
+    // Determinar fechas de inicio (Check-in 15:00) y fin (Check-out 12:00) en hora de Colombia (-05:00)
+    let checkInDate = parseHotelBogotaDateTime(reservationData.checkIn, 15) || new Date();
+    let checkOutDate = parseHotelBogotaDateTime(reservationData.checkOut, 12);
 
-    let checkOutDate = reservationData.checkOut ? new Date(reservationData.checkOut) : new Date(checkInDate.getTime() + 24 * 60 * 60 * 1000);
-    if (isNaN(checkOutDate.getTime())) checkOutDate = new Date(checkInDate.getTime() + 24 * 60 * 60 * 1000);
+    if (!checkOutDate || checkOutDate <= checkInDate) {
+      const checkInYmd = toBogotaDateStr(checkInDate);
+      const nextDayYmd = addDaysToDateStr(checkInYmd, 1);
+      checkOutDate = new Date(`${nextDayYmd}T12:00:00-05:00`);
+    }
 
-    // Si checkOut es igual o anterior a checkIn, sumar 1 día
-    if (checkOutDate <= checkInDate) {
-      checkOutDate = new Date(checkInDate.getTime() + 24 * 60 * 60 * 1000);
+    // Verificar ocupación antes de crear el evento para evitar sobre-reservas en fechas llenas
+    const checkInYmd = toBogotaDateStr(checkInDate);
+    const busyEvents = await getCalendarBusyRanges(
+      aiConfig,
+      new Date(checkInDate.getTime() - 24 * 60 * 60 * 1000),
+      new Date(checkOutDate.getTime() + 24 * 60 * 60 * 1000)
+    );
+    const nightsMap = buildOccupancyByNight(busyEvents);
+    const occupiedOnCheckIn = nightsMap.get(checkInYmd) || new Set();
+    const requestedSuites = detectEventSuite(roomType);
+
+    if (occupiedOnCheckIn.has('Noire') && occupiedOnCheckIn.has('Blanc')) {
+      console.warn(`[GoogleCalendar] ⛔ Se bloqueó la creación automática de reserva para ${checkInYmd}: ambas suites (Noire y Blanc) ya están ocupadas.`);
+      return null;
+    }
+    if (requestedSuites.includes('Noire') && occupiedOnCheckIn.has('Noire')) {
+      console.warn(`[GoogleCalendar] ⛔ Se bloqueó la creación automática de reserva para ${checkInYmd}: la Suite Noire ya está ocupada.`);
+      return null;
+    }
+    if (requestedSuites.includes('Blanc') && occupiedOnCheckIn.has('Blanc')) {
+      console.warn(`[GoogleCalendar] ⛔ Se bloqueó la creación automática de reserva para ${checkInYmd}: la Suite Blanc ya está ocupada.`);
+      return null;
     }
 
     const eventPayload = {
@@ -226,5 +588,8 @@ module.exports = {
   getCalendarClient,
   testCalendarConnection,
   getCalendarBusyRanges,
+  buildOccupancyByNight,
+  formatCalendarAvailabilityForPrompt,
+  extractQueriedDatesFromText,
   createReservationEvent
 };

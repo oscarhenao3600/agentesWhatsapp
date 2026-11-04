@@ -57,8 +57,8 @@ function decrypt(text) {
     decrypted = Buffer.concat([decrypted, decipher.final()]);
     return decrypted.toString('utf-8');
   } catch (error) {
-    console.error('Decryption error:', error);
-    return text;
+    console.warn('[Encryption] No se pudo desencriptar un valor cifrado con otra clave; usando valor vacío de respaldo.');
+    return '';
   }
 }
 

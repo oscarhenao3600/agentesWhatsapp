@@ -189,6 +189,9 @@ exports.updateBranchAI = async (req, res) => {
     for (const key of ALLOWED_AI_CONFIG_FIELDS) {
       if (Object.prototype.hasOwnProperty.call(req.body, key) && req.body[key] !== undefined) {
         let val = req.body[key];
+        if (key === 'apiKey' && typeof val === 'string' && val.trim().length > 0 && val.trim().length < 20) {
+          val = ''; // Ignorar contraseñas cortas autocompletadas por el navegador
+        }
         if ((key === 'apiKey' || key === 'googleCredentialsJson') && val && typeof val === 'string' && !isEncrypted(val)) {
           val = encrypt(val);
         }

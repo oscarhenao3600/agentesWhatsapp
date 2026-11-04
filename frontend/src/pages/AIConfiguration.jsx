@@ -115,7 +115,9 @@ const ProviderConnectionCard = ({ config, setConfig }) => (
           <Key size={16} style={{ position: 'absolute', left: '10px', top: '12px', color: 'var(--text-secondary)' }} />
           <input 
             id="ai-api-key"
+            name="ai-provider-api-key"
             type="password" 
+            autoComplete="new-password"
             className="input-field" 
             style={{ paddingLeft: '35px' }}
             placeholder="Dejar vacío para usar clave por defecto..."

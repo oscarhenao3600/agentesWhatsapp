@@ -27,6 +27,10 @@ const generateDynamicResponse = async (aiConfig, userMessage, history = [], extr
   // Limpiar posibles espacios en blanco al inicio o final de la API Key
   if (typeof apiKey === 'string') {
     apiKey = apiKey.trim();
+    // Ignorar contraseñas autocompletadas por el navegador (claves reales de Gemini/OpenAI/DeepSeek tienen >= 20 caracteres)
+    if (apiKey.length < 20) {
+      apiKey = '';
+    }
   }
   const envGeminiKey = (process.env.GEMINI_API_KEY || '').trim();
 
@@ -80,9 +84,16 @@ const generateDynamicResponse = async (aiConfig, userMessage, history = [], extr
   }
 
   const calendarContext = extraContext?.calendarAvailability ? `
-    CALENDARIO DE DISPONIBILIDAD (Google Calendar en tiempo real):
+    ===================================================================
+    CALENDARIO DE DISPONIBILIDAD OFICIAL (GOOGLE CALENDAR EN TIEMPO REAL):
     ${extraContext.calendarAvailability}
-    Instrucción de disponibilidad: Si el cliente consulta por fechas que se encuentran OCUPADAS, infórmale cortésmente y sugiere fechas disponibles cercanas. Si las fechas están libres, procede a solicitar los datos de la reserva normalmente.
+
+    REGLAS OBLIGATORIAS E INQUEBRANTABLES DE DISPONIBILIDAD:
+    1. Revisa SIEMPRE la sección "🎯 VERIFICACIÓN EXACTA PARA LAS FECHAS CONSULTADAS POR EL CLIENTE" y el "📋 REGISTRO DE NOCHES CON OCUPACIÓN" antes de responder.
+    2. Si una noche aparece como "❌ SIN DISPONIBILIDAD (Ambas suites: Noire OCUPADA y Blanc OCUPADA)", está ESTRICTAMENTE PROHIBIDO decir que hay disponibilidad o emitir <RESERVATION_JSON> para esa fecha. Infórmale amablemente al cliente que para esa noche ambas suites (Noire y Blanc) ya se encuentran reservadas y ofrécele las fechas cercanas disponibles sugeridas.
+    3. Si una noche aparece con "⚠️ DISPONIBILIDAD PARCIAL", indícale con exactitud cuál suite está disponible (Noire o Blanc) y cuál ya está ocupada.
+    4. Solo cuando la fecha y la suite elegida estén "✅ DISPONIBLE", puedes proceder con el proceso de reserva.
+    ===================================================================
   ` : '';
 
   const conciseInstructions = (aiConfig?.conciseMode !== false) ? `

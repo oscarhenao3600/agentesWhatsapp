@@ -658,18 +658,36 @@ const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '', arg6 = n
     let extraContext = {};
     if (aiConfig && aiConfig.calendarSyncEnabled) {
       try {
-        const { getCalendarBusyRanges } = require('../services/googleCalendarService');
-        const busyEvents = await getCalendarBusyRanges(aiConfig);
-        if (busyEvents && busyEvents.length > 0) {
-          const eventsList = busyEvents.map(e => {
-            const startStr = e.start ? new Date(e.start).toLocaleDateString('es-CO') : '';
-            const endStr = e.end ? new Date(e.end).toLocaleDateString('es-CO') : '';
-            return `- ${e.summary}: del ${startStr} al ${endStr}`;
-          }).join('\n');
-          extraContext.calendarAvailability = `Fechas ocupadas/reservadas en el calendario:\n${eventsList}`;
-        } else {
-          extraContext.calendarAvailability = 'Todas las fechas están disponibles en este momento.';
+        const {
+          getCalendarBusyRanges,
+          formatCalendarAvailabilityForPrompt,
+          extractQueriedDatesFromText
+        } = require('../services/googleCalendarService');
+
+        const recentText = [
+          ...history.slice(-4).map(m => m.content || ''),
+          messageText || ''
+        ].join(' ');
+        const queriedDates = extractQueriedDatesFromText(recentText, new Date());
+
+        let minDate = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        let maxDate = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+        for (const qYmd of queriedDates) {
+          const qDate = new Date(`${qYmd}T12:00:00-05:00`);
+          if (!isNaN(qDate.getTime())) {
+            const qMin = new Date(qDate.getTime() - 15 * 24 * 60 * 60 * 1000);
+            const qMax = new Date(qDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+            if (qMin < minDate) minDate = qMin;
+            if (qMax > maxDate) maxDate = qMax;
+          }
         }
+
+        const busyEvents = await getCalendarBusyRanges(aiConfig, minDate, maxDate);
+        extraContext.calendarAvailability = formatCalendarAvailabilityForPrompt(busyEvents, {
+          userMessage: messageText,
+          history,
+          aiConfig
+        });
       } catch (calErr) {
         console.warn('[GoogleCalendar] Error consultando disponibilidad para el prompt:', calErr.message);
       }
