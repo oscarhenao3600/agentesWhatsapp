@@ -237,6 +237,11 @@ const OrdersList = () => {
                         <Phone size={16} /> {order.customerPhone}
                       </div>
                     )}
+                    {order.customerOrigin && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: 'var(--text-secondary)' }}>
+                        <MapPin size={16} /> Procedencia: {order.customerOrigin}
+                      </div>
+                    )}
                     {order.deliveryAddress && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: 'var(--text-secondary)' }}>
                         <MapPin size={16} /> {order.deliveryAddress}

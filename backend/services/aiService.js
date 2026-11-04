@@ -53,12 +53,17 @@ const generateDynamicResponse = async (aiConfig, userMessage, history = [], extr
   let categoryInstructions = '';
   if (aiConfig?.businessType === 'hotel') {
     categoryInstructions = `
-    IMPORTANTE: Si detectas que el usuario está confirmando una reservación (ej: fechas de estadía, número de huéspedes, tipo de glamping/habitación):
+    REGLA DE DATOS PARA RESERVACIÓN DE HOSPEDAJE:
+    - Para registrar una reservación, solicita únicamente: el nombre del titular, su lugar de procedencia (ciudad o país), las fechas de entrada (check-in) y salida (check-out), la cantidad de huéspedes y la suite/cabaña elegida.
+    - NO solicites número de documento de identidad (cédula, pasaporte o DNI) para tomar la reservación.
+
+    IMPORTANTE: Si detectas que el usuario está confirmando una reservación con los datos requeridos:
     1. Genera tu respuesta amigable normalmente.
     2. AL FINAL de tu respuesta, añade un bloque JSON entre etiquetas <RESERVATION_JSON> y </RESERVATION_JSON> con la siguiente estructura:
     {
       "detected": true,
-      "customerName": "Nombre del huésped si lo menciona",
+      "customerName": "Nombre del huésped",
+      "customerOrigin": "Lugar o ciudad de procedencia del huésped",
       "checkIn": "Fecha checkIn (formato YYYY-MM-DD o YYYY-MM-DD HH:mm)",
       "checkOut": "Fecha checkOut (formato YYYY-MM-DD o YYYY-MM-DD HH:mm)",
       "guestsCount": 1,

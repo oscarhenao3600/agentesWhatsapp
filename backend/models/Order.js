@@ -11,6 +11,7 @@ const orderSchema = new mongoose.Schema({
     required: true
   },
   customerName: String,
+  customerOrigin: String,
   items: [{
     product: {
       type: mongoose.Schema.Types.ObjectId,

@@ -496,6 +496,7 @@ const createReservationEvent = async (aiConfig, reservationData, customerPhone =
 
     const roomType = reservationData.roomType || 'Alojamiento';
     const customerName = reservationData.customerName || 'Cliente';
+    const customerOrigin = (reservationData.customerOrigin || '').trim();
     const guestsCount = reservationData.guestsCount || 1;
     const total = reservationData.total || 0;
     const notes = reservationData.notes || '';
@@ -534,11 +535,13 @@ const createReservationEvent = async (aiConfig, reservationData, customerPhone =
       return null;
     }
 
+    const originSuffix = customerOrigin ? ` - ${customerOrigin}` : '';
     const eventPayload = {
-      summary: `Reserva: ${roomType} - ${customerName}`,
+      summary: `Reserva: ${roomType} - ${customerName}${originSuffix}`,
       description: [
         `📌 Reservación confirmada automáticamente vía WhatsApp`,
         `👤 Huésped: ${customerName}`,
+        customerOrigin ? `📍 Procedencia: ${customerOrigin}` : '',
         `📱 Teléfono: ${customerPhone}`,
         `🏡 Alojamiento: ${roomType}`,
         `👥 Huéspedes: ${guestsCount}`,

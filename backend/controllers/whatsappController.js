@@ -908,6 +908,7 @@ const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '', arg6 = n
         branch: branch._id,
         customerPhone: cleanFrom,
         customerName: reservationData.customerName || contactName || '',
+        customerOrigin: reservationData.customerOrigin || '',
         items: [{
           name: `Reserva: ${reservationData.roomType || 'Habitación/Glamping'}`,
           quantity: 1,
@@ -944,6 +945,7 @@ const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '', arg6 = n
           `🏨 *NUEVA RESERVACIÓN CONFIRMADA - ${branch.name}*`,
           `🆔 *ID Conversación:* #${conversation.shortId}`,
           `👤 *Huésped:* ${reservationData.customerName || conversation.customerName || contactName || 'Cliente'} (${cleanFrom})`,
+          reservationData.customerOrigin ? `📍 *Procedencia:* ${reservationData.customerOrigin}` : '',
           `🛏️ *Suite / Alojamiento:* ${reservationData.roomType || 'Por definir'}`,
           `👥 *Huéspedes:* ${reservationData.guestsCount || 1}`,
           `📅 *Check-In:* ${reservationData.checkIn || 'Por definir'}`,
