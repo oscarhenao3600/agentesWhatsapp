@@ -654,9 +654,11 @@ const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '', arg6 = n
       content: msg.content
     }));
 
-    // 5. Preparar contexto adicional (ej: disponibilidad en tiempo real de Google Calendar)
+    // 5. Preparar contexto adicional (ej: disponibilidad en tiempo real de Google Calendar y tarifas por fecha)
     let extraContext = {};
-    if (aiConfig && aiConfig.calendarSyncEnabled) {
+    const promptCombined = `${aiConfig?.basePrompt || ''} ${aiConfig?.menuContent || ''}`;
+    const isNoireBlancHotel = /\bnoire\b/i.test(promptCombined) && /\bblanc\b/i.test(promptCombined);
+    if (aiConfig && (aiConfig.calendarSyncEnabled || aiConfig.businessType === 'hotel' || isNoireBlancHotel)) {
       try {
         const {
           getCalendarBusyRanges,
@@ -670,19 +672,22 @@ const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '', arg6 = n
         ].join(' ');
         const queriedDates = extractQueriedDatesFromText(recentText, new Date());
 
-        let minDate = new Date(Date.now() - 24 * 60 * 60 * 1000);
-        let maxDate = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
-        for (const qYmd of queriedDates) {
-          const qDate = new Date(`${qYmd}T12:00:00-05:00`);
-          if (!isNaN(qDate.getTime())) {
-            const qMin = new Date(qDate.getTime() - 15 * 24 * 60 * 60 * 1000);
-            const qMax = new Date(qDate.getTime() + 30 * 24 * 60 * 60 * 1000);
-            if (qMin < minDate) minDate = qMin;
-            if (qMax > maxDate) maxDate = qMax;
+        let busyEvents = [];
+        if (aiConfig.calendarSyncEnabled) {
+          let minDate = new Date(Date.now() - 24 * 60 * 60 * 1000);
+          let maxDate = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+          for (const qYmd of queriedDates) {
+            const qDate = new Date(`${qYmd}T12:00:00-05:00`);
+            if (!isNaN(qDate.getTime())) {
+              const qMin = new Date(qDate.getTime() - 15 * 24 * 60 * 60 * 1000);
+              const qMax = new Date(qDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+              if (qMin < minDate) minDate = qMin;
+              if (qMax > maxDate) maxDate = qMax;
+            }
           }
+          busyEvents = await getCalendarBusyRanges(aiConfig, minDate, maxDate);
         }
 
-        const busyEvents = await getCalendarBusyRanges(aiConfig, minDate, maxDate);
         extraContext.calendarAvailability = formatCalendarAvailabilityForPrompt(busyEvents, {
           userMessage: messageText,
           history,
@@ -801,6 +806,26 @@ const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '', arg6 = n
         if (m[1]) requestedDocuments.push(m[1].trim());
       }
       cleanResponse = cleanResponse.replace(/\[ENVIAR_DOC:\s*[^\]]+\]/gi, '').trim();
+    }
+
+    // Salvaguarda determinística de tarifas para La Font Ecolodge (Suites Noire y Blanc):
+    // Evita que un signo "$" quede huérfano sin número o que se cuele una tarifa alucinada (ej. $350.000)
+    if (isNoireBlancHotel) {
+      try {
+        const { extractQueriedDatesFromText, getNoireBlancNightRateInfo } = require('../services/googleCalendarService');
+        const recentTextForRate = [...history.slice(-4).map(m => m.content || ''), messageText || ''].join(' ');
+        const qDates = extractQueriedDatesFromText(recentTextForRate, new Date());
+        const targetYmd = qDates[0] || new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date());
+        const rateInfo = getNoireBlancNightRateInfo(targetYmd);
+        const exactPriceStr = rateInfo ? rateInfo.formattedPrice.replace(' COP', '') : '$550.000';
+
+        // Reemplazar signos '$' huérfanos sin dígitos (ej: "disponible por $ en nuestra tarifa")
+        cleanResponse = cleanResponse.replace(/\$(?=\s+[a-zA-ZáéíóúñÁÉÍÓÚÑ])/g, exactPriceStr);
+        // Reemplazar tarifa alucinada de 350.000 / 350,000 si apareciera
+        cleanResponse = cleanResponse.replace(/\$?\s*350[.,]000\b/g, exactPriceStr);
+      } catch (sanErr) {
+        console.warn('[RateSafeguard] Error aplicando salvaguarda de tarifa:', sanErr.message);
+      }
     }
 
     // Si hay consulta para el administrador, registrarla en la conversación

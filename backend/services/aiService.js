@@ -90,20 +90,28 @@ const generateDynamicResponse = async (aiConfig, userMessage, history = [], extr
 
   const calendarContext = extraContext?.calendarAvailability ? `
     ===================================================================
-    CALENDARIO DE DISPONIBILIDAD OFICIAL (GOOGLE CALENDAR EN TIEMPO REAL):
+    CALENDARIO DE DISPONIBILIDAD Y TARIFAS OFICIALES EN TIEMPO REAL:
     ${extraContext.calendarAvailability}
 
-    REGLAS OBLIGATORIAS E INQUEBRANTABLES DE DISPONIBILIDAD:
-    1. Revisa SIEMPRE la sección "🎯 VERIFICACIÓN EXACTA PARA LAS FECHAS CONSULTADAS POR EL CLIENTE" y el "📋 REGISTRO DE NOCHES CON OCUPACIÓN" antes de responder.
+    REGLAS OBLIGATORIAS E INQUEBRANTABLES DE DISPONIBILIDAD Y PRECIOS:
+    1. Revisa SIEMPRE la sección "🎯 VERIFICACIÓN EXACTA DE DISPONIBILIDAD Y TARIFA PARA HOY Y FECHAS CONSULTADAS" y el "📋 REGISTRO DE NOCHES CON OCUPACIÓN" antes de responder.
     2. Si una noche aparece como "❌ SIN DISPONIBILIDAD (Ambas suites: Noire OCUPADA y Blanc OCUPADA)", está ESTRICTAMENTE PROHIBIDO decir que hay disponibilidad o emitir <RESERVATION_JSON> para esa fecha. Infórmale amablemente al cliente que para esa noche ambas suites (Noire y Blanc) ya se encuentran reservadas y ofrécele las fechas cercanas disponibles sugeridas.
     3. Si una noche aparece con "⚠️ DISPONIBILIDAD PARCIAL", indícale con exactitud cuál suite está disponible (Noire o Blanc) y cuál ya está ocupada.
-    4. Solo cuando la fecha y la suite elegida estén "✅ DISPONIBLE", puedes proceder con el proceso de reserva.
+    4. Cuando menciones o te pregunten el precio de una noche, utiliza SIEMPRE la "💰 TARIFA OFICIAL DE ESTA NOCHE" indicada para esa fecha exacta ($550.000 COP de domingo a jueves sin lunes festivo, o $750.000 COP con Servicio Premium para viernes, sábado y domingo con lunes festivo).
+    5. Solo cuando la fecha y la suite elegida estén "✅ DISPONIBLE", puedes proceder con el proceso de reserva.
     ===================================================================
   ` : '';
 
+  const pricingIntegrityRule = `
+    REGLA INQUEBRANTABLE DE EXACTITUD EN PRECIOS Y TARIFAS:
+    1. Usa ÚNICAMENTE los precios y tarifas oficiales definidos en las Instrucciones Base, en el Catálogo/Tarifario o en la Verificación de Disponibilidad y Tarifa.
+    2. Está ESTRICTAMENTE PROHIBIDO inventar precios, suponer "tarifas directas o promocionales" inexistentes (ej: jamás digas $350.000 cuando las tarifas oficiales son $550.000 y $750.000) o dejar el símbolo "$" vacío sin número.
+    3. Si en algún mensaje previo del historial apareció por error un valor distinto a la tarifa oficial o el cliente señala una diferencia de precio, dale la razón y aplica de inmediato la tarifa oficial vigente según el día de la semana o festivo.
+  `;
+
   const conciseInstructions = (aiConfig?.conciseMode !== false) ? `
     REGLAS ESTRICTAS DE CONCISIÓN PARA WHATSAPP (Ahorro de Mensajes y Costos Meta):
-    1. Responde de forma DIRECTA, CONCRETA y BREVE (máximo 2 a 3 oraciones cortas).
+    1. Responde de forma DIRECTA, CONCRETA y BREVE (máximo 2 a 3 oraciones cortas), contestando con exactitud lo que el cliente preguntó.
     2. Ve al grano: no uses fórmulas de cortesía largas, introducciones innecesarias ni repitas saludos si la conversación ya está activa.
     3. Si necesitas recopilar datos del cliente (ej: fechas de check-in y check-out, cantidad de personas o productos para un pedido), pídela TODA de una sola vez en un único mensaje claro, en lugar de hacer múltiples preguntas en varios turnos.
     4. Prohibido usar frases de cierre repetitivas como "¿En qué más te puedo colaborar hoy?" o "¿Deseas algo más?", ya que alargan la conversación y generan mensajes y cobros innecesarios.
@@ -146,23 +154,27 @@ ${docsSummary}
 ${urlsSummary}
 
     REGLA PARA ENVIAR DOCUMENTOS / ARCHIVOS CARGADOS AL CLIENTE:
-    Si en las instrucciones del Prompt Base se indica enviar alguno de los documentos cargados ante una consulta (por ejemplo: políticas para mascotas, menú/carta del restaurante, catálogo PDF, reglamento) o si el cliente solicita esa información:
-    1. Responde amablemente en texto según lo indicado en el prompt (ej: confirmando que sí se aceptan mascotas bajo nuestras políticas y que a continuación le compartes el documento).
-    2. AL FINAL de tu respuesta, añade obligatoriamente la etiqueta <SEND_DOCUMENT_JSON>{"files": ["Nombre_Exacto_Del_Archivo"]}</SEND_DOCUMENT_JSON> usando el nombre exacto del archivo listado arriba para que el sistema adjunte y envíe el documento automáticamente al WhatsApp del cliente.
+    1. Responde SIEMPRE primero la duda puntual del cliente usando los datos de las Instrucciones Base (por ejemplo, si pregunta qué tipo de mascotas se aceptan, menciona explícitamente que se aceptan perros pequeños o medianos y gatos, máximo 2 mascotas).
+    2. ÚNICAMENTE ofrece enviar un documento adjunto y añade la etiqueta <SEND_DOCUMENT_JSON>{"files": ["Nombre_Exacto_Del_Archivo"]}</SEND_DOCUMENT_JSON> cuando dicho archivo REALMENTE exista en la lista de "Archivo disponible para enviar por WhatsApp" de arriba y corresponda al tema consultado. Si no existe un archivo cargado para ese tema en la lista de arriba, NO prometas enviar un documento que no está cargado.
     `;
   }
+
+  const catalogSection = (aiConfig?.menuContent && aiConfig.menuContent.trim())
+    ? `Catálogo / Tarifario / Menú oficial (usa esto para responder):\n    ${aiConfig.menuContent}`
+    : `Nota de Catálogo: Utiliza las tarifas, precios y condiciones detalladas directamente en las Instrucciones Base y en la Verificación de Disponibilidad y Tarifa.`;
 
   const systemInstruction = `
     Actúa como un asistente para el negocio. Instrucciones: ${basePrompt}
     
-    Catálogo/Menú o información disponible (usa esto para responder):
-    ${aiConfig?.menuContent || 'No hay menú específico provisto.'}
+    ${catalogSection}
     
     ${knowledgeDocumentsContext}
 
     ${categoryInstructions}
 
     ${calendarContext}
+
+    ${pricingIntegrityRule}
 
     ${conciseInstructions}
 

@@ -197,6 +197,121 @@ const detectEventSuite = (summary = '') => {
 };
 
 /**
+ * Calcula la fecha del Domingo de Pascua para un año dado (Algoritmo de Butcher/Meeus)
+ */
+const getEasterSundayYmd = (year) => {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+};
+
+/**
+ * Traslada una fecha YYYY-MM-DD al lunes siguiente si no cae en lunes (Ley Emiliani - Colombia)
+ */
+const moveToNextMondayYmd = (ymd) => {
+  const [y, m, d] = ymd.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+  const dow = dt.getUTCDay(); // 0=Dom, 1=Lun, ..., 6=Sab
+  if (dow === 1) return ymd;
+  const daysToAdd = dow === 0 ? 1 : (8 - dow);
+  return addDaysToDateStr(ymd, daysToAdd);
+};
+
+/**
+ * Obtiene el conjunto de días festivos oficiales en Colombia para un año dado
+ */
+const getColombianHolidaysForYear = (year) => {
+  const y = String(year).padStart(4, '0');
+  const holidays = new Set([
+    `${y}-01-01`, // Año Nuevo
+    `${y}-05-01`, // Día del Trabajo
+    `${y}-07-20`, // Día de la Independencia
+    `${y}-08-07`, // Batalla de Boyacá
+    `${y}-12-08`, // Inmaculada Concepción
+    `${y}-12-25`  // Navidad
+  ]);
+
+  // Festivos trasladables al lunes (Ley Emiliani)
+  const emilianiFixed = [
+    `${y}-01-06`, // Reyes Magos
+    `${y}-03-19`, // San José
+    `${y}-06-29`, // San Pedro y San Pablo
+    `${y}-08-15`, // Asunción de la Virgen
+    `${y}-10-12`, // Día de la Raza
+    `${y}-11-01`, // Todos los Santos
+    `${y}-11-11`  // Independencia de Cartagena
+  ];
+  emilianiFixed.forEach(dt => holidays.add(moveToNextMondayYmd(dt)));
+
+  // Festivos basados en Pascua
+  const easterYmd = getEasterSundayYmd(year);
+  holidays.add(addDaysToDateStr(easterYmd, -3)); // Jueves Santo
+  holidays.add(addDaysToDateStr(easterYmd, -2)); // Viernes Santo
+  holidays.add(addDaysToDateStr(easterYmd, 43)); // Ascensión del Señor (Lunes)
+  holidays.add(addDaysToDateStr(easterYmd, 64)); // Corpus Christi (Lunes)
+  holidays.add(addDaysToDateStr(easterYmd, 71)); // Sagrado Corazón de Jesús (Lunes)
+
+  return holidays;
+};
+
+/**
+ * Determina si una fecha YYYY-MM-DD es festivo en Colombia
+ */
+const isColombianHoliday = (ymd) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return false;
+  const year = Number(ymd.slice(0, 4));
+  return getColombianHolidaysForYear(year).has(ymd);
+};
+
+/**
+ * Calcula la tarifa oficial por noche para La Font Ecolodge (Suites Noire y Blanc)
+ * - Domingo a jueves (cuando el lunes siguiente NO es festivo): $550.000 COP (Tarifa Estándar, Check-out 12:00 m.)
+ * - Viernes, sábado, o domingo cuando el lunes siguiente ES FESTIVO en Colombia: $750.000 COP (Servicio Premium, Late Check-out hasta 1:30 p. m.)
+ */
+const getNoireBlancNightRateInfo = (ymd) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return null;
+  const [y, m, d] = ymd.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+  const dow = dt.getUTCDay(); // 0=Dom, 1=Lun, 2=Mar, 3=Mie, 4=Jue, 5=Vie, 6=Sab
+  const nextDayYmd = addDaysToDateStr(ymd, 1);
+  const isNextMondayHoliday = dow === 0 && isColombianHoliday(nextDayYmd);
+  const isPremiumNight = dow === 5 || dow === 6 || isNextMondayHoliday;
+
+  if (isPremiumNight) {
+    const reason = dow === 5 ? 'Noche de Viernes' : dow === 6 ? 'Noche de Sábado' : 'Noche de Domingo con Lunes Festivo';
+    return {
+      priceCop: 750000,
+      formattedPrice: '$750.000 COP',
+      planName: 'Tarifa Servicio Premium',
+      reason,
+      checkOutInfo: 'Check-out estándar 12:00 m. | Incluye Late Check-out exclusivo Servicio Premium hasta la 1:30 p. m.',
+      summaryText: `💰 TARIFA OFICIAL DE ESTA NOCHE: $750.000 COP por suite (${reason} - Servicio Premium para 2 adultos, desayuno incluido y Late Check-out hasta la 1:30 p. m.)`
+    };
+  }
+
+  return {
+    priceCop: 550000,
+    formattedPrice: '$550.000 COP',
+    planName: 'Tarifa Estándar (Domingo a Jueves)',
+    reason: 'Noche entre domingo y jueves (sin lunes festivo)',
+    checkOutInfo: 'Check-out a las 12:00 m.',
+    summaryText: `💰 TARIFA OFICIAL DE ESTA NOCHE: $550.000 COP por suite (Tarifa Estándar para 2 adultos, desayuno incluido, Check-out 12:00 m.)`
+  };
+};
+
+/**
  * Extrae las fechas (YYYY-MM-DD) por las que el usuario está consultando en su mensaje o historial reciente
  */
 const extractQueriedDatesFromText = (text = '', referenceDate = new Date()) => {
@@ -207,8 +322,48 @@ const extractQueriedDatesFromText = (text = '', referenceDate = new Date()) => {
     .replace(/[\u0300-\u036f]/g, '');
 
   const refYmd = toBogotaDateStr(referenceDate) || new Date().toISOString().slice(0, 10);
-  const [refYear, refMonth] = refYmd.split('-').map(Number);
+  const [refYear, refMonth, refDay] = refYmd.split('-').map(Number);
+  const refUtcDate = new Date(Date.UTC(refYear, refMonth - 1, refDay, 12, 0, 0));
+  const refDow = refUtcDate.getUTCDay(); // 0=Dom..6=Sab
   const foundDates = new Set();
+
+  // 0. Expresiones relativas: "hoy", "esta noche", "mañana", "pasado mañana", "este fin de semana" y días de la semana
+  if (/\b(hoy|esta\s+noche|tonight|today|ahora)\b/i.test(norm)) {
+    foundDates.add(refYmd);
+  }
+  if (/\b(pasado\s+manana|day\s+after\s+tomorrow)\b/i.test(norm)) {
+    foundDates.add(addDaysToDateStr(refYmd, 2));
+  } else if (/\b(manana|tomorrow)\b/i.test(norm)) {
+    foundDates.add(addDaysToDateStr(refYmd, 1));
+  }
+  if (/\b(fin\s+de\s+semana|finde|weekend)\b/i.test(norm)) {
+    const daysUntilFri = (5 - refDow + 7) % 7;
+    const friYmd = addDaysToDateStr(refYmd, daysUntilFri);
+    const satYmd = addDaysToDateStr(friYmd, 1);
+    const sunYmd = addDaysToDateStr(friYmd, 2);
+    foundDates.add(friYmd);
+    foundDates.add(satYmd);
+    if (isColombianHoliday(addDaysToDateStr(sunYmd, 1))) {
+      foundDates.add(sunYmd);
+    }
+  }
+
+  const weekdayMap = {
+    domingo: 0, sunday: 0,dimanche: 0,
+    lunes: 1, monday: 1, lundi: 1,
+    martes: 2, tuesday: 2, mardi: 2,
+    miercoles: 3, wednesday: 3, mercredi: 3,
+    jueves: 4, thursday: 4, jeudi: 4,
+    viernes: 5, friday: 5, vendredi: 5,
+    sabado: 6, saturday: 6, samedi: 6
+  };
+  for (const [dayName, targetDow] of Object.entries(weekdayMap)) {
+    const dayRegex = new RegExp(`\\b${dayName}\\b`, 'i');
+    if (dayRegex.test(norm)) {
+      const delta = (targetDow - refDow + 7) % 7;
+      foundDates.add(addDaysToDateStr(refYmd, delta));
+    }
+  }
 
   const resolveYear = (monthNum, explicitYear) => {
     if (explicitYear) {
@@ -414,21 +569,29 @@ const formatCalendarAvailabilityForPrompt = (busyEvents = [], { userMessage = ''
     ...history.slice(-4).map(m => m.content || ''),
     userMessage || ''
   ].join(' ');
-  const queriedDates = extractQueriedDatesFromText(recentText, new Date());
+  const extractedDates = extractQueriedDatesFromText(recentText, new Date());
+  // Asegurar que siempre se verifique al menos la fecha actual (hoy / esta noche)
+  const queriedDates = [...new Set([todayYmd, ...extractedDates])].sort();
 
   const lines = [];
   lines.push(`📅 FECHA ACTUAL DEL SISTEMA (Colombia): ${todayHuman}`);
   if (isNoireBlancHotel) {
     lines.push(`🏨 UNIDADES DEL ALOJAMIENTO: Este hotel cuenta ÚNICAMENTE con 2 suites en total: Suite Noire y Suite Blanc.`);
-    lines.push(`⚠️ REGLA DE OCUPACIÓN POR NOCHE: Cada fecha listada corresponde a la NOCHE de hospedaje (Check-in a las 3:00 PM de ese día y Check-out a las 12:00 PM del día siguiente). Si para una noche tanto Noire como Blanc aparecen OCUPADAS, significa que NO HAY NINGUNA CABAÑA DISPONIBLE para esa noche.`);
+    lines.push(`⚠️ REGLA DE OCUPACIÓN POR NOCHE: Cada fecha listada corresponde a la NOCHE de hospedaje (Check-in a las 3:00 PM de ese día y Check-out a las 12:00 PM del día siguiente; o Late Check-out hasta la 1:30 PM en noches de Servicio Premium). Si para una noche tanto Noire como Blanc aparecen OCUPADAS, significa que NO HAY NINGUNA SUITE DISPONIBLE para esa noche.`);
+    lines.push(`💵 REGLA INQUEBRANTABLE DE TARIFAS OFICIALES (POR NOCHE Y POR SUITE PARA 2 ADULTOS CON DESAYUNO INCLUIDO):`);
+    lines.push(`  1. Tarifa Mínima / Estándar (Domingo a Jueves, cuando el lunes siguiente NO es festivo): $550.000 COP por noche (Check-out 12:00 m.).`);
+    lines.push(`  2. Tarifa Servicio Premium (Viernes, Sábado, y Domingo cuando el lunes siguiente ES FESTIVO en Colombia): $750.000 COP por noche (incluye Servicio Premium y Late Check-out hasta la 1:30 p. m.).`);
+    lines.push(`  3. PROHIBICIÓN ABSOLUTA: La tarifa mínima del hotel es $550.000 COP. JAMÁS menciones precios de $350.000 ni ningún otro valor diferente a $550.000 o $750.000, y NUNCA escribas el signo "$" sin el número completo al lado.`);
   }
 
   if (queriedDates.length > 0) {
-    lines.push(`\n🎯 VERIFICACIÓN EXACTA PARA LAS FECHAS CONSULTADAS POR EL CLIENTE:`);
+    lines.push(`\n🎯 VERIFICACIÓN EXACTA DE DISPONIBILIDAD Y TARIFA PARA HOY Y FECHAS CONSULTADAS:`);
     for (const qYmd of queriedDates) {
       const nextYmd = addDaysToDateStr(qYmd, 1);
       const status = describeNightStatus(qYmd);
-      lines.push(`  • Noche del ${formatHumanDateEs(qYmd)} [Check-in ${qYmd} -> Check-out ${nextYmd}]: ${status.summaryLine}`);
+      const rateInfo = isNoireBlancHotel ? getNoireBlancNightRateInfo(qYmd) : null;
+      const rateSuffix = rateInfo ? ` | ${rateInfo.summaryText}` : '';
+      lines.push(`  • Noche del ${formatHumanDateEs(qYmd)} [Check-in ${qYmd} -> Check-out ${nextYmd}]: ${status.summaryLine}${rateSuffix}`);
 
       // Si está totalmente ocupada, buscar las fechas cercanas disponibles para sugerirle al cliente
       if (status.fullyBooked) {
@@ -438,7 +601,8 @@ const formatCalendarAvailabilityForPrompt = (busyEvents = [], { userMessage = ''
           if (candYmd >= todayYmd) {
             const candStatus = describeNightStatus(candYmd);
             if (!candStatus.fullyBooked) {
-              nearbyAvailable.push(`${formatHumanDateEs(candYmd)} (${candStatus.summaryLine})`);
+              const candRate = isNoireBlancHotel ? getNoireBlancNightRateInfo(candYmd) : null;
+              nearbyAvailable.push(`${formatHumanDateEs(candYmd)} (${candStatus.summaryLine}${candRate ? ` - ${candRate.formattedPrice}` : ''})`);
             }
           }
           if (nearbyAvailable.length >= 3) break;
@@ -594,5 +758,7 @@ module.exports = {
   buildOccupancyByNight,
   formatCalendarAvailabilityForPrompt,
   extractQueriedDatesFromText,
-  createReservationEvent
+  createReservationEvent,
+  isColombianHoliday,
+  getNoireBlancNightRateInfo
 };
