@@ -533,7 +533,8 @@ const initSession = async (branchId, initialQrCount = 0, forceNew = false) => {
             },
             sendDocumentCallback: async ({ fileBuffer, fileName, mimeType, caption }) => {
               console.log(`[Baileys] 📎 Enviando documento "${fileName}" a ${remoteJid}...`);
-              const payload = (mimeType && mimeType.startsWith('image/'))
+              const isImg = (mimeType && mimeType.startsWith('image/')) || /\.(jpe?g|png|webp)$/i.test(fileName || '');
+              const payload = isImg
                 ? { image: fileBuffer, caption: caption || fileName }
                 : {
                     document: fileBuffer,
@@ -730,7 +731,8 @@ const sendDirectDocument = async (branchId, targetPhone, { fileBuffer, fileName,
     }
   } catch (e) {}
 
-  const payload = (mimeType && mimeType.startsWith('image/'))
+  const isImg = (mimeType && mimeType.startsWith('image/')) || /\.(jpe?g|png|webp)$/i.test(fileName || '');
+  const payload = isImg
     ? { image: fileBuffer, caption: caption || fileName }
     : {
         document: fileBuffer,

@@ -278,7 +278,7 @@ const isColombianHoliday = (ymd) => {
 /**
  * Calcula la tarifa oficial por noche para La Font Ecolodge (Suites Noire y Blanc)
  * - Domingo a jueves (cuando el lunes siguiente NO es festivo): $550.000 COP (Tarifa Estándar, Check-out 12:00 m.)
- * - Viernes, sábado, o domingo cuando el lunes siguiente ES FESTIVO en Colombia: $750.000 COP (Servicio Premium, Late Check-out hasta 1:30 p. m.)
+ * - Viernes, sábado, o domingo cuando el lunes siguiente ES FESTIVO en Colombia: $750.000 COP (Experiencia Premium, Late Check-out hasta 1:30 p. m.)
  */
 const getNoireBlancNightRateInfo = (ymd) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return null;
@@ -294,20 +294,20 @@ const getNoireBlancNightRateInfo = (ymd) => {
     return {
       priceCop: 750000,
       formattedPrice: '$750.000 COP',
-      planName: 'Tarifa Servicio Premium',
+      planName: 'tarifa de Experiencia Premium',
       reason,
-      checkOutInfo: 'Check-out estándar 12:00 m. | Incluye Late Check-out exclusivo Servicio Premium hasta la 1:30 p. m.',
-      summaryText: `💰 TARIFA OFICIAL DE ESTA NOCHE: $750.000 COP por suite (${reason} - Servicio Premium para 2 adultos, desayuno incluido y Late Check-out hasta la 1:30 p. m.)`
+      checkOutInfo: 'Check-out estándar 12:00 m. | Incluye late check-out exclusivo Experiencia Premium hasta la 1:30 p. m.',
+      summaryText: `💰 TARIFA OFICIAL DE ESTA NOCHE: a un valor de $750.000 COP por suite (${reason} - tarifa de Experiencia Premium para 2 adultos con desayuno y late check-out hasta la 1:30 p. m.)`
     };
   }
 
   return {
     priceCop: 550000,
     formattedPrice: '$550.000 COP',
-    planName: 'Tarifa Estándar (Domingo a Jueves)',
+    planName: 'tarifa Estándar (Domingo a Jueves)',
     reason: 'Noche entre domingo y jueves (sin lunes festivo)',
     checkOutInfo: 'Check-out a las 12:00 m.',
-    summaryText: `💰 TARIFA OFICIAL DE ESTA NOCHE: $550.000 COP por suite (Tarifa Estándar para 2 adultos, desayuno incluido, Check-out 12:00 m.)`
+    summaryText: `💰 TARIFA OFICIAL DE ESTA NOCHE: a un valor de $550.000 COP por suite (tarifa Estándar para 2 adultos con desayuno incluido y check-out a las 12:00 m.)`
   };
 };
 
@@ -573,14 +573,39 @@ const formatCalendarAvailabilityForPrompt = (busyEvents = [], { userMessage = ''
   // Asegurar que siempre se verifique al menos la fecha actual (hoy / esta noche)
   const queriedDates = [...new Set([todayYmd, ...extractedDates])].sort();
 
+  const nowBogota = new Date();
+  const bogotaHour = Number(new Intl.DateTimeFormat('en-US', {
+    timeZone: BOGOTA_TZ,
+    hour: 'numeric',
+    hour12: false
+  }).format(nowBogota));
+  const bogotaTimeHuman = new Intl.DateTimeFormat('es-CO', {
+    timeZone: BOGOTA_TZ,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  }).format(nowBogota);
+
+  let greetingByTime = '¡Muy buenas noches! 🌙';
+  let periodName = 'noche';
+  if (bogotaHour >= 5 && bogotaHour < 12) {
+    greetingByTime = '¡Muy buenos días! ☀️';
+    periodName = 'mañana';
+  } else if (bogotaHour >= 12 && bogotaHour < 18) {
+    greetingByTime = '¡Muy buenas tardes! 🌤️';
+    periodName = 'tarde';
+  }
+
   const lines = [];
-  lines.push(`📅 FECHA ACTUAL DEL SISTEMA (Colombia): ${todayHuman}`);
+  lines.push(`📅 FECHA Y HORA ACTUAL DEL SISTEMA (Colombia): ${todayHuman} - ${bogotaTimeHuman} (franja: ${periodName}, saludo sugerido si es primer contacto: "${greetingByTime}")`);
   if (isNoireBlancHotel) {
+    lines.push(`👋 FORMATO DE SALUDO INICIAL (Solo en el primer mensaje de la conversación):`);
+    lines.push(`   "${greetingByTime} Qué gusto saludarte. Soy Lucas, asesor virtual de La Font Ecolodge, en Buenavista, Quindío. 🌿✨\n\nCuéntame, ¿estás pensando en regalarte una escapada y conocer nuestra experiencia?"`);
     lines.push(`🏨 UNIDADES DEL ALOJAMIENTO: Este hotel cuenta ÚNICAMENTE con 2 suites en total: Suite Noire y Suite Blanc.`);
-    lines.push(`⚠️ REGLA DE OCUPACIÓN POR NOCHE: Cada fecha listada corresponde a la NOCHE de hospedaje (Check-in a las 3:00 PM de ese día y Check-out a las 12:00 PM del día siguiente; o Late Check-out hasta la 1:30 PM en noches de Servicio Premium). Si para una noche tanto Noire como Blanc aparecen OCUPADAS, significa que NO HAY NINGUNA SUITE DISPONIBLE para esa noche.`);
+    lines.push(`⚠️ REGLA DE OCUPACIÓN POR NOCHE: Cada fecha listada corresponde a la NOCHE de hospedaje (Check-in a las 3:00 PM de ese día y Check-out a las 12:00 PM del día siguiente; o late check-out hasta la 1:30 p. m. en noches de Experiencia Premium). Si para una noche tanto Noire como Blanc aparecen OCUPADAS, significa que NO HAY NINGUNA SUITE DISPONIBLE para esa noche.`);
     lines.push(`💵 REGLA INQUEBRANTABLE DE TARIFAS OFICIALES (POR NOCHE Y POR SUITE PARA 2 ADULTOS CON DESAYUNO INCLUIDO):`);
-    lines.push(`  1. Tarifa Mínima / Estándar (Domingo a Jueves, cuando el lunes siguiente NO es festivo): $550.000 COP por noche (Check-out 12:00 m.).`);
-    lines.push(`  2. Tarifa Servicio Premium (Viernes, Sábado, y Domingo cuando el lunes siguiente ES FESTIVO en Colombia): $750.000 COP por noche (incluye Servicio Premium y Late Check-out hasta la 1:30 p. m.).`);
+    lines.push(`  1. Tarifa Mínima / Estándar (Domingo a Jueves, cuando el lunes siguiente NO es festivo): a un valor de $550.000 COP por noche (check-out 12:00 m.).`);
+    lines.push(`  2. Tarifa de Experiencia Premium (Viernes, Sábado, y Domingo cuando el lunes siguiente ES FESTIVO en Colombia): a un valor de $750.000 COP por noche (tarifa de Experiencia Premium para 2 adultos con desayuno y late check-out hasta la 1:30 p. m.).`);
     lines.push(`  3. PROHIBICIÓN ABSOLUTA: La tarifa mínima del hotel es $550.000 COP. JAMÁS menciones precios de $350.000 ni ningún otro valor diferente a $550.000 o $750.000, y NUNCA escribas el signo "$" sin el número completo al lado.`);
   }
 

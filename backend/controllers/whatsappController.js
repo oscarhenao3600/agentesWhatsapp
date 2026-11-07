@@ -1003,24 +1003,82 @@ const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '', arg6 = n
     }
 
     // 11. Si la IA determinó que debe adjuntar uno o más documentos de la Base de Conocimiento (ej. Políticas de Mascotas, Menú PDF)
-    if (requestedDocuments.length > 0 && Array.isArray(aiConfig?.knowledgeSources) && aiConfig.knowledgeSources.length > 0) {
+    if (Array.isArray(aiConfig?.knowledgeSources) && aiConfig.knowledgeSources.length > 0) {
+      // Si se acaba de confirmar una reservación, adjuntar automáticamente políticas de cancelación si existe en RAG
+      if (reservationData && reservationData.detected) {
+        requestedDocuments.push('politicas de cancelacion.jpeg');
+      }
+
+      // Respaldo inteligente: si la IA en su texto promete compartir un documento/imagen/carta/menú pero olvidó emitir <SEND_DOCUMENT_JSON>
+      const normReply = normalizeText(cleanResponse);
+      const normUserMsg = normalizeText(messageText);
+      const combinedContext = `${normUserMsg} ${normReply}`;
+      const promisesAttachment = /\b(te\s+comparto|adjunto|envio|a\s+continuacion\s+el\s+documento|comparto\s+el\s+documento|comparto\s+la\s+imagen|comparto\s+la\s+carta)\b/i.test(normReply);
+
+      if (requestedDocuments.length === 0 && promisesAttachment) {
+        if (/\bmascota/i.test(combinedContext)) {
+          requestedDocuments.push('politicas para huespedes con mascotas');
+        }
+        if (/\bcancelaci/i.test(combinedContext)) {
+          requestedDocuments.push('politicas de cancelacion');
+        }
+        if (/\bpremium\b/i.test(combinedContext)) {
+          requestedDocuments.push('experiencia premium');
+        }
+        if (/\bminibar\b|\blicor|\bsnack|\bcerveza|\bvino|\bwhisky|\btequila/i.test(combinedContext)) {
+          requestedDocuments.push('minibar');
+        }
+        if (/\bcaicedonia\b|\bshoppers\b/i.test(combinedContext)) {
+          requestedDocuments.push('Shoppers caicedonia.pdf');
+        } else if (/\brestaurante\b|\bcarta\b|\bmenu\b/i.test(combinedContext)) {
+          requestedDocuments.push('CARTA MENU TERRA.pdf', 'Menu Domingo.pdf');
+        }
+      }
+
       const uniqueDocs = [...new Set(requestedDocuments.map(d => String(d).trim()).filter(Boolean))];
+      const sentSourceIds = new Set();
+
+      const extractKeywords = (str) =>
+        normalizeText(String(str || '').replace(/\.[^/.]+$/, ''))
+          .replace(/huspedes/g, 'huespedes')
+          .split(/[^a-z0-9]+/)
+          .filter(w => w.length >= 4 && !['para', 'con', 'del', 'las', 'los', 'una', 'documento', 'imagen'].includes(w));
+
       for (const reqDocName of uniqueDocs) {
-        const normTarget = normalizeText(reqDocName);
+        const normTarget = normalizeText(reqDocName).replace(/huspedes/g, 'huespedes');
+        const targetNoExt = normTarget.replace(/\.[^/.]+$/, '');
+        const targetWords = extractKeywords(reqDocName);
+
         const matchedSource = aiConfig.knowledgeSources.find(src => {
           if (src.type !== 'file') return false;
-          const normName = normalizeText(src.name);
-          const normAlias = normalizeText(src.alias);
-          return (
+          const normName = normalizeText(src.name).replace(/huspedes/g, 'huespedes');
+          const normNameNoExt = normName.replace(/\.[^/.]+$/, '');
+          const normAlias = normalizeText(src.alias).replace(/huspedes/g, 'huespedes');
+
+          if (
             normName === normTarget ||
+            normNameNoExt === targetNoExt ||
             normAlias === normTarget ||
-            normName.includes(normTarget) ||
-            normTarget.includes(normName) ||
-            (normAlias && (normAlias.includes(normTarget) || normTarget.includes(normAlias)))
-          );
+            normAlias === targetNoExt ||
+            normName.includes(targetNoExt) ||
+            targetNoExt.includes(normNameNoExt) ||
+            (normAlias && (normAlias.includes(targetNoExt) || targetNoExt.includes(normAlias)))
+          ) {
+            return true;
+          }
+
+          if (targetWords.length > 0) {
+            const srcWords = extractKeywords(`${src.name} ${src.alias || ''}`);
+            const overlap = targetWords.filter(w => srcWords.includes(w));
+            if (overlap.length >= Math.min(2, targetWords.length)) {
+              return true;
+            }
+          }
+          return false;
         });
 
-        if (matchedSource) {
+        if (matchedSource && !sentSourceIds.has(matchedSource.id || matchedSource.name)) {
+          sentSourceIds.add(matchedSource.id || matchedSource.name);
           let fileBuffer = null;
           if (matchedSource.filePath && fs.existsSync(matchedSource.filePath)) {
             fileBuffer = fs.readFileSync(matchedSource.filePath);
