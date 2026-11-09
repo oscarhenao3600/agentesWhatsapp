@@ -277,8 +277,8 @@ const isColombianHoliday = (ymd) => {
 
 /**
  * Calcula la tarifa oficial por noche para La Font Ecolodge (Suites Noire y Blanc)
- * - Domingo a jueves (cuando el lunes siguiente NO es festivo): $550.000 COP (Tarifa Estándar, Check-out 12:00 m.)
- * - Viernes, sábado, o domingo cuando el lunes siguiente ES FESTIVO en Colombia: $750.000 COP (Experiencia Premium, Late Check-out hasta 1:30 p. m.)
+ * - Domingo a jueves (cuando el lunes siguiente NO es festivo): $550.000 COP para 2 adultos (+ $150.000 COP persona adicional, máx. 1 por suite = $700.000 COP para 3 personas)
+ * - Viernes, sábado, o domingo cuando el lunes siguiente ES FESTIVO en Colombia: $750.000 COP para 2 adultos (+ $200.000 COP persona adicional, máx. 1 por suite = $950.000 COP para 3 personas)
  */
 const getNoireBlancNightRateInfo = (ymd) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return null;
@@ -293,21 +293,27 @@ const getNoireBlancNightRateInfo = (ymd) => {
     const reason = dow === 5 ? 'Noche de Viernes' : dow === 6 ? 'Noche de Sábado' : 'Noche de Domingo con Lunes Festivo';
     return {
       priceCop: 750000,
+      extraPersonCop: 200000,
+      totalThreeGuestsCop: 950000,
       formattedPrice: '$750.000 COP',
+      formattedExtraPerson: '$200.000 COP',
       planName: 'tarifa de Experiencia Premium',
       reason,
       checkOutInfo: 'Check-out estándar 12:00 m. | Incluye late check-out exclusivo Experiencia Premium hasta la 1:30 p. m.',
-      summaryText: `💰 TARIFA OFICIAL DE ESTA NOCHE: a un valor de $750.000 COP por suite (${reason} - tarifa de Experiencia Premium para 2 adultos con desayuno y late check-out hasta la 1:30 p. m.)`
+      summaryText: `💰 TARIFA OFICIAL DE ESTA NOCHE: a un valor de $750.000 COP por suite (${reason} - tarifa de Experiencia Premium para 2 adultos con desayuno y late check-out hasta la 1:30 p. m. | Persona adicional [máx. 1 por suite]: +$200.000 COP, total 3 personas: $950.000 COP)`
     };
   }
 
   return {
     priceCop: 550000,
+    extraPersonCop: 150000,
+    totalThreeGuestsCop: 700000,
     formattedPrice: '$550.000 COP',
+    formattedExtraPerson: '$150.000 COP',
     planName: 'tarifa Estándar (Domingo a Jueves)',
     reason: 'Noche entre domingo y jueves (sin lunes festivo)',
     checkOutInfo: 'Check-out a las 12:00 m.',
-    summaryText: `💰 TARIFA OFICIAL DE ESTA NOCHE: a un valor de $550.000 COP por suite (tarifa Estándar para 2 adultos con desayuno incluido y check-out a las 12:00 m.)`
+    summaryText: `💰 TARIFA OFICIAL DE ESTA NOCHE: a un valor de $550.000 COP por suite (tarifa Estándar para 2 adultos con desayuno incluido y check-out a las 12:00 m. | Persona adicional [máx. 1 por suite]: +$150.000 COP, total 3 personas: $700.000 COP)`
   };
 };
 
@@ -601,12 +607,13 @@ const formatCalendarAvailabilityForPrompt = (busyEvents = [], { userMessage = ''
   if (isNoireBlancHotel) {
     lines.push(`👋 FORMATO DE SALUDO INICIAL (Solo en el primer mensaje de la conversación):`);
     lines.push(`   "${greetingByTime} Qué gusto saludarte. Soy Lucas, asesor virtual de La Font Ecolodge, en Buenavista, Quindío. 🌿✨\n\nCuéntame, ¿estás pensando en regalarte una escapada y conocer nuestra experiencia?"`);
-    lines.push(`🏨 UNIDADES DEL ALOJAMIENTO: Este hotel cuenta ÚNICAMENTE con 2 suites en total: Suite Noire y Suite Blanc.`);
+    lines.push(`🏨 UNIDADES Y CAPACIDAD DEL ALOJAMIENTO: Este hotel cuenta ÚNICAMENTE con 2 suites en total: Suite Noire y Suite Blanc. La tarifa base de cada suite es para 2 personas (pareja), pero SÍ se permite máximo 1 persona adicional por suite/cabaña (hasta 3 personas en total por suite) en caso de que el cliente lo requiera.`);
     lines.push(`⚠️ REGLA DE OCUPACIÓN POR NOCHE: Cada fecha listada corresponde a la NOCHE de hospedaje (Check-in a las 3:00 PM de ese día y Check-out a las 12:00 PM del día siguiente; o late check-out hasta la 1:30 p. m. en noches de Experiencia Premium). Si para una noche tanto Noire como Blanc aparecen OCUPADAS, significa que NO HAY NINGUNA SUITE DISPONIBLE para esa noche.`);
-    lines.push(`💵 REGLA INQUEBRANTABLE DE TARIFAS OFICIALES (POR NOCHE Y POR SUITE PARA 2 ADULTOS CON DESAYUNO INCLUIDO):`);
-    lines.push(`  1. Tarifa Mínima / Estándar (Domingo a Jueves, cuando el lunes siguiente NO es festivo): a un valor de $550.000 COP por noche (check-out 12:00 m.).`);
-    lines.push(`  2. Tarifa de Experiencia Premium (Viernes, Sábado, y Domingo cuando el lunes siguiente ES FESTIVO en Colombia): a un valor de $750.000 COP por noche (tarifa de Experiencia Premium para 2 adultos con desayuno y late check-out hasta la 1:30 p. m.).`);
-    lines.push(`  3. PROHIBICIÓN ABSOLUTA: La tarifa mínima del hotel es $550.000 COP. JAMÁS menciones precios de $350.000 ni ningún otro valor diferente a $550.000 o $750.000, y NUNCA escribas el signo "$" sin el número completo al lado.`);
+    lines.push(`💵 REGLA INQUEBRANTABLE DE TARIFAS OFICIALES (POR NOCHE Y POR SUITE):`);
+    lines.push(`  1. Tarifa Mínima / Estándar (Domingo a Jueves, cuando el lunes siguiente NO es festivo): a un valor de $550.000 COP por noche para 2 adultos (check-out 12:00 m.). Valor persona adicional (máx. 1 por suite): $150.000 COP por noche (total 3 personas: $700.000 COP).`);
+    lines.push(`  2. Tarifa de Experiencia Premium (Viernes, Sábado, y Domingo cuando el lunes siguiente ES FESTIVO en Colombia): a un valor de $750.000 COP por noche para 2 adultos (tarifa de Experiencia Premium con desayuno y late check-out hasta la 1:30 p. m.). Valor persona adicional (máx. 1 por suite): $200.000 COP por noche (total 3 personas: $950.000 COP).`);
+    lines.push(`  3. CONDICIÓN DE PAGO Y MEDIOS DE PAGO PARA RESERVAR: "Para realizar la reserva, se requiere del pago total o de un anticipo mínimo del 60% del valor total de la estadía y los servicios adicionales.\n\nAceptamos pagos mediante transferencia bancaria a Bancolombia, Nequi, DaviPlata y tarjetas débito o crédito."`);
+    lines.push(`  4. PROHIBICIÓN ABSOLUTA: La tarifa mínima del hotel para 2 personas es $550.000 COP. JAMÁS menciones precios de $350.000 ni ningún otro valor inventado, y NUNCA escribas el signo "$" sin el número completo al lado.`);
   }
 
   if (queriedDates.length > 0) {
