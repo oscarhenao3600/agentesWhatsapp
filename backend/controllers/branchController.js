@@ -437,6 +437,21 @@ exports.uploadKnowledgeFile = async (req, res) => {
       });
     }
 
+    // Sanear y vaciar Base64 de fuentes previas para liberar espacio del límite estricto de 16MB de MongoDB
+    if (Array.isArray(aiConfig.knowledgeSources)) {
+      for (const s of aiConfig.knowledgeSources) {
+        if (s.fileDataBase64) {
+          if (s.filePath && !fs.existsSync(s.filePath)) {
+            try {
+              fs.mkdirSync(path.dirname(s.filePath), { recursive: true });
+              fs.writeFileSync(s.filePath, Buffer.from(s.fileDataBase64, 'base64'));
+            } catch (e) {}
+          }
+          s.fileDataBase64 = ''; // Desinflar BSON de Mongo
+        }
+      }
+    }
+
     const readableSize = size || `${(fileBuffer.length / (1024 * 1024)).toFixed(2)} MB`;
     const newSource = {
       id: sourceId,
@@ -446,8 +461,8 @@ exports.uploadKnowledgeFile = async (req, res) => {
       mimeType: mimeType || (lowerName.endsWith('.pdf') ? 'application/pdf' : 'application/octet-stream'),
       size: readableSize,
       filePath: fullFilePath,
-      fileDataBase64: fileBuffer.length <= 12 * 1024 * 1024 ? cleanBase64 : '',
-      extractedText,
+      fileDataBase64: '', // El archivo reside físicamente en disco (filePath); NO guardamos Base64 en Mongo para evitar exceder los 16MB
+      extractedText: (extractedText || '').substring(0, 15000),
       status: 'active',
       uploadedAt: new Date()
     };
@@ -457,7 +472,28 @@ exports.uploadKnowledgeFile = async (req, res) => {
       s => !(s.type === 'file' && s.name.toLowerCase() === fileName.trim().toLowerCase())
     );
     aiConfig.knowledgeSources.push(newSource);
-    await aiConfig.save();
+
+    try {
+      await aiConfig.save();
+    } catch (saveErr) {
+      // Si el documento en MongoDB aún supera los 16MB por fuentes antiguas, forzar vaciado atómico vía MongoDB nativo
+      if (saveErr.message && saveErr.message.includes('BSONObj size')) {
+        console.warn('[KnowledgeUpload] Documento BSON al límite de 16MB. Vaciando strings de Base64 atómicamente...');
+        await BranchAIConfig.collection.updateOne(
+          { branch: aiConfig.branch },
+          { $set: { "knowledgeSources.$[].fileDataBase64": "" } }
+        );
+        // Reintentar guardar tras vaciar
+        aiConfig = await BranchAIConfig.findOne({ branch: branchId });
+        aiConfig.knowledgeSources = (aiConfig.knowledgeSources || []).filter(
+          s => !(s.type === 'file' && s.name.toLowerCase() === fileName.trim().toLowerCase())
+        );
+        aiConfig.knowledgeSources.push(newSource);
+        await aiConfig.save();
+      } else {
+        throw saveErr;
+      }
+    }
 
     const responseItem = { ...newSource };
     delete responseItem.fileDataBase64;
@@ -545,5 +581,35 @@ exports.deleteKnowledgeSource = async (req, res) => {
     res.json({ success: true, sources: sanitizeKnowledgeSources(aiConfig.knowledgeSources) });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Limpia los campos Base64 persistidos en MongoDB para mantener los documentos por debajo del límite de 16MB
+exports.cleanupKnowledgeSourcesBase64 = async () => {
+  try {
+    const configs = await BranchAIConfig.find({
+      'knowledgeSources.fileDataBase64': { $exists: true, $ne: '' }
+    });
+
+    for (const config of configs) {
+      if (Array.isArray(config.knowledgeSources)) {
+        for (const src of config.knowledgeSources) {
+          if (src.fileDataBase64 && src.filePath && !fs.existsSync(src.filePath)) {
+            try {
+              fs.mkdirSync(path.dirname(src.filePath), { recursive: true });
+              fs.writeFileSync(src.filePath, Buffer.from(src.fileDataBase64, 'base64'));
+            } catch (e) {}
+          }
+        }
+      }
+      // Vaciar atómicamente en MongoDB para desinflar el BSON de inmediato
+      await BranchAIConfig.collection.updateOne(
+        { _id: config._id },
+        { $set: { "knowledgeSources.$[].fileDataBase64": "" } }
+      );
+      console.log(`🧹 [KnowledgeMaintenance] Documento BranchAIConfig (${config._id}) desinflado en MongoDB exitosamente.`);
+    }
+  } catch (err) {
+    console.warn('[KnowledgeMaintenance] Error en mantenimiento de documentos Base64:', err.message);
   }
 };

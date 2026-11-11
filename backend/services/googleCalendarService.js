@@ -300,7 +300,7 @@ const getNoireBlancNightRateInfo = (ymd) => {
       planName: 'tarifa de Experiencia Premium',
       reason,
       checkOutInfo: 'Check-out estándar 12:00 m. | Incluye late check-out exclusivo Experiencia Premium hasta la 1:30 p. m.',
-      summaryText: `💰 TARIFA OFICIAL DE ESTA NOCHE: a un valor de $750.000 COP por suite (${reason} - tarifa de Experiencia Premium para 2 adultos con desayuno y late check-out hasta la 1:30 p. m. | Persona adicional [máx. 1 por suite]: +$200.000 COP, total 3 personas: $950.000 COP)`
+      summaryText: `💰 TARIFA OFICIAL DE ESTA NOCHE (2 adultos): a un valor de $750.000 COP por suite (${reason} - tarifa de Experiencia Premium para 2 adultos con desayuno y late check-out hasta la 1:30 p. m.)`
     };
   }
 
@@ -313,7 +313,7 @@ const getNoireBlancNightRateInfo = (ymd) => {
     planName: 'tarifa Estándar (Domingo a Jueves)',
     reason: 'Noche entre domingo y jueves (sin lunes festivo)',
     checkOutInfo: 'Check-out a las 12:00 m.',
-    summaryText: `💰 TARIFA OFICIAL DE ESTA NOCHE: a un valor de $550.000 COP por suite (tarifa Estándar para 2 adultos con desayuno incluido y check-out a las 12:00 m. | Persona adicional [máx. 1 por suite]: +$150.000 COP, total 3 personas: $700.000 COP)`
+    summaryText: `💰 TARIFA OFICIAL DE ESTA NOCHE (2 adultos): a un valor de $550.000 COP por suite (tarifa Estándar para 2 adultos con desayuno incluido y check-out a las 12:00 m.)`
   };
 };
 
@@ -607,13 +607,15 @@ const formatCalendarAvailabilityForPrompt = (busyEvents = [], { userMessage = ''
   if (isNoireBlancHotel) {
     lines.push(`👋 FORMATO DE SALUDO INICIAL (Solo en el primer mensaje de la conversación):`);
     lines.push(`   "${greetingByTime} Qué gusto saludarte. Soy Lucas, asesor virtual de La Font Ecolodge, en Buenavista, Quindío. 🌿✨\n\nCuéntame, ¿estás pensando en regalarte una escapada y conocer nuestra experiencia?"`);
-    lines.push(`🏨 UNIDADES Y CAPACIDAD DEL ALOJAMIENTO: Este hotel cuenta ÚNICAMENTE con 2 suites en total: Suite Noire y Suite Blanc. La tarifa base de cada suite es para 2 personas (pareja), pero SÍ se permite máximo 1 persona adicional por suite/cabaña (hasta 3 personas en total por suite) en caso de que el cliente lo requiera.`);
+    lines.push(`🏨 UNIDADES Y CAPACIDAD DEL ALOJAMIENTO: Este hotel cuenta ÚNICAMENTE con 2 suites en total: Suite Noire y Suite Blanc.`);
     lines.push(`⚠️ REGLA DE OCUPACIÓN POR NOCHE: Cada fecha listada corresponde a la NOCHE de hospedaje (Check-in a las 3:00 PM de ese día y Check-out a las 12:00 PM del día siguiente; o late check-out hasta la 1:30 p. m. en noches de Experiencia Premium). Si para una noche tanto Noire como Blanc aparecen OCUPADAS, significa que NO HAY NINGUNA SUITE DISPONIBLE para esa noche.`);
     lines.push(`💵 REGLA INQUEBRANTABLE DE TARIFAS OFICIALES (POR NOCHE Y POR SUITE):`);
-    lines.push(`  1. Tarifa Mínima / Estándar (Domingo a Jueves, cuando el lunes siguiente NO es festivo): a un valor de $550.000 COP por noche para 2 adultos (check-out 12:00 m.). Valor persona adicional (máx. 1 por suite): $150.000 COP por noche (total 3 personas: $700.000 COP).`);
-    lines.push(`  2. Tarifa de Experiencia Premium (Viernes, Sábado, y Domingo cuando el lunes siguiente ES FESTIVO en Colombia): a un valor de $750.000 COP por noche para 2 adultos (tarifa de Experiencia Premium con desayuno y late check-out hasta la 1:30 p. m.). Valor persona adicional (máx. 1 por suite): $200.000 COP por noche (total 3 personas: $950.000 COP).`);
-    lines.push(`  3. CONDICIÓN DE PAGO Y MEDIOS DE PAGO PARA RESERVAR: "Para realizar la reserva, se requiere del pago total o de un anticipo mínimo del 60% del valor total de la estadía y los servicios adicionales.\n\nAceptamos pagos mediante transferencia bancaria a Bancolombia, Nequi, DaviPlata y tarjetas débito o crédito."`);
-    lines.push(`  4. PROHIBICIÓN ABSOLUTA: La tarifa mínima del hotel para 2 personas es $550.000 COP. JAMÁS menciones precios de $350.000 ni ningún otro valor inventado, y NUNCA escribas el signo "$" sin el número completo al lado.`);
+    lines.push(`  1. Tarifa Mínima / Estándar (Domingo a Jueves, cuando el lunes siguiente NO es festivo): a un valor de $550.000 COP por noche para 2 adultos (check-out 12:00 m.).`);
+    lines.push(`  2. Tarifa de Experiencia Premium (Viernes, Sábado, y Domingo cuando el lunes siguiente ES FESTIVO en Colombia): a un valor de $750.000 COP por noche para 2 adultos (tarifa de Experiencia Premium con desayuno y late check-out hasta la 1:30 p. m.).`);
+    lines.push(`  3. REGLA ESTRICTA SOBRE PERSONA ADICIONAL (NO MENCIONAR ESPONTÁNEAMENTE): Está PROHIBIDO ofrecer o mencionar la capacidad o el costo de persona adicional por iniciativa propia. Cotiza siempre para 2 adultos. ÚNICAMENTE si el cliente pregunta expresamente por una 3ra persona o persona adicional, infórmale que se permite máximo 1 persona adicional por suite con un valor de $150.000 COP por noche (de domingo a jueves sin lunes festivo) o $200.000 COP por noche (viernes, sábado o domingo con lunes festivo).`);
+    lines.push(`  4. REGLA ESTRICTA SOBRE RESTAURANTE, ALMUERZOS/CENAS Y MINIBAR: El archivo "La_Font_Ecolodge_Menu_Habitacion.pdf" NO es un menú de almuerzos ni cenas, es únicamente el MINIBAR de la suite. Cuando el cliente pregunte por almorzar, cenar o restaurante, infórmale que puede pedir servicio a domicilio de nuestros restaurantes aliados (en Buenavista y Caicedonia), compártele SIEMPRE los menús de los restaurantes aliados ("CARTA MENU TERRA.pdf", "Menu Domingo.pdf" y "Shoppers caicedonia.pdf"), y respecto a la suite menciona únicamente que el minibar cuenta con Otras Bebidas (agua, Coca-Cola, Té Hatsu, Electrolit) y Snacks (café Nespresso, papas Pringles, galletas Cocosette y Cafecitas, salchicha Zenú, platanitos, papas Monterojo y mezcla de frutos secos).`);
+    lines.push(`  5. CONDICIÓN DE PAGO Y MEDIOS DE PAGO PARA RESERVAR: "Para realizar la reserva, se requiere del pago total o de un anticipo mínimo del 60% del valor total de la estadía y los servicios adicionales.\n\nAceptamos pagos mediante transferencia bancaria a Bancolombia, Nequi, DaviPlata y tarjetas débito o crédito."`);
+    lines.push(`  6. PROHIBICIÓN ABSOLUTA: La tarifa mínima del hotel para 2 personas es $550.000 COP. JAMÁS menciones precios de $350.000 ni ningún otro valor inventado, y NUNCA escribas el signo "$" sin el número completo al lado.`);
   }
 
   if (queriedDates.length > 0) {

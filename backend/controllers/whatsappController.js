@@ -828,6 +828,16 @@ const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '', arg6 = n
       }
     }
 
+    // Salvaguarda: Evitar que cleanResponse quede vacía o solo con espacios tras limpiar tags
+    if (!cleanResponse || !cleanResponse.trim()) {
+      const isAffirmation = /^(s[ií]|claro|por supuesto|eso estoy pensando|me gustar[ií]a|correcto|de acuerdo)\b/i.test((messageText || '').trim());
+      if (isNoireBlancHotel && isAffirmation) {
+        cleanResponse = '¡Qué maravilla! 🌿✨ En La Font Ecolodge contamos con dos suites exclusivas para desconectarte y disfrutar de la naturaleza: la *Suite Noire* y la *Suite Blanc* (ambas con jacuzzi privado, vista panorámica, cama King y desayuno incluido).\n\n¿Tienes alguna fecha en mente para tu estadía o te gustaría que te comparta fotos y detalles para ayudarte a elegir? ☕✨';
+      } else {
+        cleanResponse = '¡Con mucho gusto! 🌿 Cuéntame qué fechas tienes en mente o qué te gustaría conocer para brindarte toda la información con gusto.';
+      }
+    }
+
     // Si hay consulta para el administrador, registrarla en la conversación
     if (adminQueryData && adminQueryData.detected) {
       const questionToAsk = (adminQueryData.question || messageText).trim();
@@ -1013,9 +1023,22 @@ const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '', arg6 = n
       const normReply = normalizeText(cleanResponse);
       const normUserMsg = normalizeText(messageText);
       const combinedContext = `${normUserMsg} ${normReply}`;
-      const promisesAttachment = /\b(te\s+comparto|adjunto|envio|a\s+continuacion\s+el\s+documento|comparto\s+el\s+documento|comparto\s+la\s+imagen|comparto\s+la\s+carta)\b/i.test(normReply);
+      const promisesAttachment = /\b(te\s+comparto|adjunto|envio|a\s+continuacion\s+el\s+documento|comparto\s+el\s+documento|comparto\s+la\s+imagen|comparto\s+la\s+carta|comparto\s+el\s+menu|comparto\s+los\s+menus)\b/i.test(normReply);
 
-      if (requestedDocuments.length === 0 && promisesAttachment) {
+      // Si el cliente pregunta por almorzar, cenar, restaurante o alimentación (y NO pidió expresamente el PDF del minibar/licores):
+      // 1. No adjuntar "La_Font_Ecolodge_Menu_Habitacion.pdf" (solo se menciona en texto lo que tiene el minibar en Otras Bebidas y Snacks).
+      // 2. Asegurar que se envíen los menús de los restaurantes aliados ("CARTA MENU TERRA.pdf", "Menu Domingo.pdf", "Shoppers caicedonia.pdf").
+      const isMealOrRestaurantQuery = /\b(almorz|almuerz|cenar|cena|restaurante|comida|comer|alimentaci)\b/i.test(normUserMsg);
+      const isExplicitMinibarQuery = /\b(minibar|licor|cerveza|vino|whisky|tequila)\b/i.test(normUserMsg);
+
+      if (isMealOrRestaurantQuery && !isExplicitMinibarQuery) {
+        requestedDocuments = requestedDocuments.filter(doc => !/menu[_\s-]*habitacion|minibar/i.test(normalizeText(doc)));
+        if (/\bcaicedonia\b|\bshoppers\b/i.test(normUserMsg) && !/\bbuenavista\b|\bterra\b/i.test(normUserMsg)) {
+          requestedDocuments.push('Shoppers caicedonia.pdf');
+        } else {
+          requestedDocuments.push('CARTA MENU TERRA.pdf', 'Menu Domingo.pdf', 'Shoppers caicedonia.pdf');
+        }
+      } else if (requestedDocuments.length === 0 && promisesAttachment) {
         if (/\bmascota/i.test(combinedContext)) {
           requestedDocuments.push('politicas para huespedes con mascotas');
         }
@@ -1026,12 +1049,12 @@ const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '', arg6 = n
           requestedDocuments.push('experiencia premium');
         }
         if (/\bminibar\b|\blicor|\bsnack|\bcerveza|\bvino|\bwhisky|\btequila/i.test(combinedContext)) {
-          requestedDocuments.push('minibar');
+          requestedDocuments.push('La_Font_Ecolodge_Menu_Habitacion.pdf');
         }
         if (/\bcaicedonia\b|\bshoppers\b/i.test(combinedContext)) {
           requestedDocuments.push('Shoppers caicedonia.pdf');
         } else if (/\brestaurante\b|\bcarta\b|\bmenu\b/i.test(combinedContext)) {
-          requestedDocuments.push('CARTA MENU TERRA.pdf', 'Menu Domingo.pdf');
+          requestedDocuments.push('CARTA MENU TERRA.pdf', 'Menu Domingo.pdf', 'Shoppers caicedonia.pdf');
         }
       }
 

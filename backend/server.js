@@ -16,6 +16,12 @@ connectDB().then(async () => {
   } catch (err) {
     console.error('⚠️ Error verificando usuario administrador inicial:', err.message);
   }
+  try {
+    const { cleanupKnowledgeSourcesBase64 } = require('./controllers/branchController');
+    await cleanupKnowledgeSourcesBase64();
+  } catch (err) {
+    console.warn('⚠️ Error en mantenimiento inicial de base de datos:', err.message);
+  }
   const { autoReconnectBaileysBranches } = require('./services/baileysService');
   setTimeout(() => {
     autoReconnectBaileysBranches();
