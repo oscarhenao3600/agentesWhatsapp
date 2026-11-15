@@ -516,6 +516,111 @@ const buildOccupancyByNight = (busyEvents = []) => {
 };
 
 /**
+ * Determina qué suite(s) deben mostrarse en fotos/información según si el cliente
+ * ya definió una fecha en la conversación y cuál es la disponibilidad en Google Calendar.
+ * - Si el cliente NO ha definido fecha aún: mostrar fotos de ambas cabañas (Noire y Blanc).
+ * - Si el cliente YA definió una fecha:
+ *   - Si ninguna está reservada (ambas disponibles): mostrar fotos de las dos (Noire y Blanc).
+ *   - Si la Blanc está ocupada y la Noire disponible: mostrar SOLO las fotos de la Noire.
+ *   - Si la Noire está ocupada y la Blanc disponible: mostrar SOLO las fotos de la Blanc.
+ *   - Si ambas están ocupadas: ninguna disponible para esa fecha.
+ */
+const resolvePhotoSuitePolicy = (busyEvents = [], { userMessage = '', history = [] } = {}) => {
+  const nightsMap = buildOccupancyByNight(busyEvents);
+
+  // Extraer fechas mencionadas únicamente por el cliente (mensajes de rol 'user' + mensaje actual)
+  const userMessagesText = [
+    ...(Array.isArray(history) ? history.filter(m => m.role === 'user').slice(-6).map(m => m.content || '') : []),
+    userMessage || ''
+  ].join(' ');
+
+  const clientDefinedDates = extractQueriedDatesFromText(userMessagesText, new Date());
+
+  if (clientDefinedDates.length === 0) {
+    return {
+      hasDefinedDate: false,
+      definedDates: [],
+      stayNights: [],
+      noireAvailable: true,
+      blancAvailable: true,
+      suitesToShow: ['Noire', 'Blanc'],
+      policyCode: 'NO_DATE_SHOW_BOTH'
+    };
+  }
+
+  // Si el cliente indicó un rango de entrada y salida (ej. "del 15 al 16 de noviembre" o "check-out 16"),
+  // la última fecha consecutiva corresponde al día de salida (Check-out 12:00 m.) y no a una noche adicional.
+  let stayNights = [...clientDefinedDates];
+  if (
+    stayNights.length >= 2 &&
+    /\b(al|hasta|salida|check\s*-?\s*out)\b/i.test(userMessagesText)
+  ) {
+    const lastYmd = stayNights[stayNights.length - 1];
+    const prevYmd = stayNights[stayNights.length - 2];
+    if (addDaysToDateStr(prevYmd, 1) === lastYmd) {
+      stayNights = stayNights.slice(0, -1);
+    }
+  }
+
+  let noireBusyAny = false;
+  let blancBusyAny = false;
+  for (const ymd of stayNights) {
+    const occupiedSet = nightsMap.get(ymd) || new Set();
+    if (occupiedSet.has('Noire') || occupiedSet.has('General')) noireBusyAny = true;
+    if (occupiedSet.has('Blanc') || occupiedSet.has('General')) blancBusyAny = true;
+  }
+
+  const noireAvailable = !noireBusyAny;
+  const blancAvailable = !blancBusyAny;
+
+  if (noireAvailable && blancAvailable) {
+    return {
+      hasDefinedDate: true,
+      definedDates: clientDefinedDates,
+      stayNights,
+      noireAvailable: true,
+      blancAvailable: true,
+      suitesToShow: ['Noire', 'Blanc'],
+      policyCode: 'DATE_BOTH_AVAILABLE_SHOW_BOTH'
+    };
+  }
+
+  if (noireAvailable && !blancAvailable) {
+    return {
+      hasDefinedDate: true,
+      definedDates: clientDefinedDates,
+      stayNights,
+      noireAvailable: true,
+      blancAvailable: false,
+      suitesToShow: ['Noire'],
+      policyCode: 'DATE_BLANC_BUSY_SHOW_ONLY_NOIRE'
+    };
+  }
+
+  if (!noireAvailable && blancAvailable) {
+    return {
+      hasDefinedDate: true,
+      definedDates: clientDefinedDates,
+      stayNights,
+      noireAvailable: false,
+      blancAvailable: true,
+      suitesToShow: ['Blanc'],
+      policyCode: 'DATE_NOIRE_BUSY_SHOW_ONLY_BLANC'
+    };
+  }
+
+  return {
+    hasDefinedDate: true,
+    definedDates: clientDefinedDates,
+    stayNights,
+    noireAvailable: false,
+    blancAvailable: false,
+    suitesToShow: [],
+    policyCode: 'DATE_BOTH_BUSY'
+  };
+};
+
+/**
  * Genera el reporte detallado de disponibilidad para inyectar a la IA, destacando las fechas consultadas por el cliente
  */
 const formatCalendarAvailabilityForPrompt = (busyEvents = [], { userMessage = '', history = [], aiConfig = null } = {}) => {
@@ -537,23 +642,31 @@ const formatCalendarAvailabilityForPrompt = (busyEvents = [], { userMessage = ''
       if (noireBusy && blancBusy) {
         return {
           fullyBooked: true,
+          noireAvailable: false,
+          blancAvailable: false,
           summaryLine: `❌ SIN DISPONIBILIDAD (Ambas suites: Noire OCUPADA y Blanc OCUPADA)`
         };
       }
       if (noireBusy && !blancBusy) {
         return {
           fullyBooked: false,
+          noireAvailable: false,
+          blancAvailable: true,
           summaryLine: `⚠️ DISPONIBILIDAD PARCIAL: Suite Noire OCUPADA | ✅ Suite Blanc DISPONIBLE`
         };
       }
       if (!noireBusy && blancBusy) {
         return {
           fullyBooked: false,
+          noireAvailable: true,
+          blancAvailable: false,
           summaryLine: `⚠️ DISPONIBILIDAD PARCIAL: Suite Blanc OCUPADA | ✅ Suite Noire DISPONIBLE`
         };
       }
       return {
         fullyBooked: false,
+        noireAvailable: true,
+        blancAvailable: true,
         summaryLine: `✅ TOTALMENTE DISPONIBLE (Suite Noire DISPONIBLE y Suite Blanc DISPONIBLE)`
       };
     }
@@ -616,6 +729,25 @@ const formatCalendarAvailabilityForPrompt = (busyEvents = [], { userMessage = ''
     lines.push(`  4. REGLA ESTRICTA SOBRE RESTAURANTE, ALMUERZOS/CENAS Y MINIBAR: El archivo "La_Font_Ecolodge_Menu_Habitacion.pdf" NO es un menú de almuerzos ni cenas, es únicamente el MINIBAR de la suite. Cuando el cliente pregunte por almorzar, cenar o restaurante, infórmale que puede pedir servicio a domicilio de nuestros restaurantes aliados (en Buenavista y Caicedonia), compártele SIEMPRE los menús de los restaurantes aliados ("CARTA MENU TERRA.pdf", "Menu Domingo.pdf" y "Shoppers caicedonia.pdf"), y respecto a la suite menciona únicamente que el minibar cuenta con Otras Bebidas (agua, Coca-Cola, Té Hatsu, Electrolit) y Snacks (café Nespresso, papas Pringles, galletas Cocosette y Cafecitas, salchicha Zenú, platanitos, papas Monterojo y mezcla de frutos secos).`);
     lines.push(`  5. CONDICIÓN DE PAGO Y MEDIOS DE PAGO PARA RESERVAR: "Para realizar la reserva, se requiere del pago total o de un anticipo mínimo del 60% del valor total de la estadía y los servicios adicionales.\n\nAceptamos pagos mediante transferencia bancaria a Bancolombia, Nequi, DaviPlata y tarjetas débito o crédito."`);
     lines.push(`  6. PROHIBICIÓN ABSOLUTA: La tarifa mínima del hotel para 2 personas es $550.000 COP. JAMÁS menciones precios de $350.000 ni ningún otro valor inventado, y NUNCA escribas el signo "$" sin el número completo al lado.`);
+
+    const photoPolicy = resolvePhotoSuitePolicy(busyEvents, { userMessage, history });
+    lines.push(`📸 REGLA OBLIGATORIA PARA MOSTRAR / ENVIAR FOTOS DE LAS HABITACIONES O CABAÑAS (NOIRE Y BLANC):`);
+    lines.push(`  - Si el cliente solicita fotos de las habitaciones/cabañas ANTES de definir una fecha: debes mostrar/enviar las fotos de LAS DOS cabañas (Suite Noire y Suite Blanc).`);
+    lines.push(`  - Si el cliente YA definió una fecha:`);
+    lines.push(`    • Si para dicha fecha NINGUNA está reservada (ambas disponibles): muestra/envía las fotos de LAS DOS cabañas (Suite Noire y Suite Blanc).`);
+    lines.push(`    • Si para dicha fecha la Suite Blanc está ocupada y la Suite Noire está disponible: muestra/envía ÚNICAMENTE las fotos de la Suite Noire.`);
+    lines.push(`    • Si para dicha fecha la Suite Noire está ocupada y la Suite Blanc está disponible: muestra/envía ÚNICAMENTE las fotos de la Suite Blanc.`);
+    if (!photoPolicy.hasDefinedDate) {
+      lines.push(`  👉 ESTADO ACTUAL EN ESTA CONVERSACIÓN: El cliente AÚN NO ha definido una fecha. Si solicita fotos de las habitaciones/cabañas, muestra y envía las fotos de LAS DOS cabañas (Suite Noire y Suite Blanc).`);
+    } else if (photoPolicy.policyCode === 'DATE_BOTH_AVAILABLE_SHOW_BOTH') {
+      lines.push(`  👉 ESTADO ACTUAL PARA LA FECHA DEFINIDA POR EL CLIENTE (${photoPolicy.stayNights.join(', ')}): Ninguna cabaña está reservada (Noire DISPONIBLE y Blanc DISPONIBLE). Si solicita fotos, muestra y envía las fotos de LAS DOS cabañas (Suite Noire y Suite Blanc).`);
+    } else if (photoPolicy.policyCode === 'DATE_BLANC_BUSY_SHOW_ONLY_NOIRE') {
+      lines.push(`  👉 ESTADO ACTUAL PARA LA FECHA DEFINIDA POR EL CLIENTE (${photoPolicy.stayNights.join(', ')}): La Suite Blanc está OCUPADA y solo la Suite Noire está DISPONIBLE. Si solicita fotos, muestra y envía ÚNICAMENTE las fotos de la Suite Noire (PROHIBIDO mostrar o enviar fotos de la Suite Blanc).`);
+    } else if (photoPolicy.policyCode === 'DATE_NOIRE_BUSY_SHOW_ONLY_BLANC') {
+      lines.push(`  👉 ESTADO ACTUAL PARA LA FECHA DEFINIDA POR EL CLIENTE (${photoPolicy.stayNights.join(', ')}): La Suite Noire está OCUPADA y solo la Suite Blanc está DISPONIBLE. Si solicita fotos, muestra y envía ÚNICAMENTE las fotos de la Suite Blanc (PROHIBIDO mostrar o enviar fotos de la Suite Noire).`);
+    } else {
+      lines.push(`  👉 ESTADO ACTUAL PARA LA FECHA DEFINIDA POR EL CLIENTE (${photoPolicy.stayNights.join(', ')}): Ambas cabañas (Noire y Blanc) están OCUPADAS. Infórmale amablemente y ofrécele las fechas cercanas disponibles.`);
+    }
   }
 
   if (queriedDates.length > 0) {
@@ -790,6 +922,7 @@ module.exports = {
   testCalendarConnection,
   getCalendarBusyRanges,
   buildOccupancyByNight,
+  resolvePhotoSuitePolicy,
   formatCalendarAvailabilityForPrompt,
   extractQueriedDatesFromText,
   createReservationEvent,

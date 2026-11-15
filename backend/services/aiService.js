@@ -63,6 +63,13 @@ const generateDynamicResponse = async (aiConfig, userMessage, history = [], extr
       2. Menciona brevemente que en La Font Ecolodge contamos con dos suites exclusivas para desconectarse y disfrutar de la naturaleza: la *Suite Noire* y la *Suite Blanc* (ambas con jacuzzi privado, vista panorámica, cama King y desayuno incluido).
       3. Invítalo amablemente al siguiente paso: pregúntale si ya tiene alguna fecha en mente para verificar disponibilidad o si prefiere que le compartas fotos y detalles de las suites para conocerlas.
 
+    REGLA DE ENVÍO Y PRESENTACIÓN DE FOTOS DE LAS SUITES (NOIRE Y BLANC) SEGÚN FECHA Y DISPONIBILIDAD:
+    - Si el cliente solicita fotos de las habitaciones/cabañas ANTES de haber definido una fecha: muestra y envía las fotos de LAS DOS cabañas (*Suite Noire* y *Suite Blanc*).
+    - Si el cliente YA definió una fecha:
+      • Si ninguna está reservada para esa fecha (ambas disponibles): muestra y envía las fotos de LAS DOS cabañas (*Suite Noire* y *Suite Blanc*).
+      • Si la *Suite Blanc* está ocupada para esa fecha: muestra y envía ÚNICAMENTE las fotos de la *Suite Noire*.
+      • Si la *Suite Noire* está ocupada para esa fecha: muestra y envía ÚNICAMENTE las fotos de la *Suite Blanc*.
+
     IMPORTANTE: Si detectas que el usuario está confirmando una reservación con los datos requeridos:
     1. Genera tu respuesta amigable normalmente.
     2. AL FINAL de tu respuesta, añade un bloque JSON entre etiquetas <RESERVATION_JSON> y </RESERVATION_JSON> con la siguiente estructura:
@@ -105,6 +112,7 @@ const generateDynamicResponse = async (aiConfig, userMessage, history = [], extr
     3. Si una noche aparece con "⚠️ DISPONIBILIDAD PARCIAL", ofrece directamente y en positivo ÚNICAMENTE la suite que está disponible sin mencionar que la otra está ocupada (a menos que el cliente haya preguntado específicamente por la suite ocupada). Ejemplo de estilo ideal: "Hola. 🌿 Sí, para hoy viernes 6 de noviembre tenemos disponible la *Suite Blanc* a un valor de $750.000 COP (tarifa de Experiencia Premium para 2 adultos con desayuno y late check-out hasta la 1:30 p. m.) ¿Te gustaría reservar?"
     4. Cuando menciones o te pregunten el precio de una noche, utiliza SIEMPRE la "💰 TARIFA OFICIAL DE ESTA NOCHE" con la expresión "a un valor de $550.000 COP" (tarifa Estándar de domingo a jueves sin lunes festivo) o "a un valor de $750.000 COP (tarifa de Experiencia Premium para 2 adultos con desayuno y late check-out hasta la 1:30 p. m.)" (viernes, sábado y domingo con lunes festivo).
     5. Solo cuando la fecha y la suite elegida estén "✅ DISPONIBLE", puedes proceder con el proceso de reserva.
+    6. FOTOS DE LAS HABITACIONES SEGÚN FECHA Y DISPONIBILIDAD: Si el cliente pide fotos de las habitaciones antes de definir una fecha, muestra las fotos de las dos cabañas (Noire y Blanc). Si ya definió una fecha, envía/muestra la foto de la que está disponible para dicha fecha (si Blanc está ocupada, solo muestra Noire; si Noire está ocupada, solo muestra Blanc; si para dicha fecha ninguna está reservada, muestra las fotos de las dos).
     ===================================================================
   ` : '';
 

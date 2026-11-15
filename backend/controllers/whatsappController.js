@@ -656,12 +656,14 @@ const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '', arg6 = n
 
     // 5. Preparar contexto adicional (ej: disponibilidad en tiempo real de Google Calendar y tarifas por fecha)
     let extraContext = {};
+    let photoSuitePolicy = null;
     const promptCombined = `${aiConfig?.basePrompt || ''} ${aiConfig?.menuContent || ''}`;
     const isNoireBlancHotel = /\bnoire\b/i.test(promptCombined) && /\bblanc\b/i.test(promptCombined);
     if (aiConfig && (aiConfig.calendarSyncEnabled || aiConfig.businessType === 'hotel' || isNoireBlancHotel)) {
       try {
         const {
           getCalendarBusyRanges,
+          resolvePhotoSuitePolicy,
           formatCalendarAvailabilityForPrompt,
           extractQueriedDatesFromText
         } = require('../services/googleCalendarService');
@@ -687,6 +689,11 @@ const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '', arg6 = n
           }
           busyEvents = await getCalendarBusyRanges(aiConfig, minDate, maxDate);
         }
+
+        photoSuitePolicy = resolvePhotoSuitePolicy(busyEvents, {
+          userMessage: messageText,
+          history
+        });
 
         extraContext.calendarAvailability = formatCalendarAvailabilityForPrompt(busyEvents, {
           userMessage: messageText,
@@ -1023,7 +1030,62 @@ const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '', arg6 = n
       const normReply = normalizeText(cleanResponse);
       const normUserMsg = normalizeText(messageText);
       const combinedContext = `${normUserMsg} ${normReply}`;
-      const promisesAttachment = /\b(te\s+comparto|adjunto|envio|a\s+continuacion\s+el\s+documento|comparto\s+el\s+documento|comparto\s+la\s+imagen|comparto\s+la\s+carta|comparto\s+el\s+menu|comparto\s+los\s+menus)\b/i.test(normReply);
+      const promisesAttachment = /\b(te\s+comparto|adjunto|envio|a\s+continuacion\s+el\s+documento|comparto\s+el\s+documento|comparto\s+la\s+imagen|comparto\s+las\s+imagenes|comparto\s+las\s+fotos|comparto\s+fotos|comparto\s+la\s+carta|comparto\s+el\s+menu|comparto\s+los\s+menus)\b/i.test(normReply);
+
+      // Regla determinística de fotos para La Font Ecolodge (Suites Noire y Blanc) según fecha y disponibilidad:
+      // - Antes de definir fecha: mostrar/enviar fotos de las dos cabañas (Noire y Blanc).
+      // - Con fecha definida:
+      //   • Si ninguna está reservada: mostrar/enviar fotos de las dos cabañas (Noire y Blanc).
+      //   • Si Blanc está ocupada: mostrar/enviar SOLO las fotos de Noire.
+      //   • Si Noire está ocupada: mostrar/enviar SOLO las fotos de Blanc.
+      if (isNoireBlancHotel) {
+        const asksForSuitePhotos =
+          /\b(foto|fotos|fotografia|fotografias|imagen|imagenes|galeria|recorrido\s+visual)\b/i.test(normUserMsg) ||
+          (/\b(ver|mostrar|muestrame|conocer|enviame|mandame|regalame|comparteme)\b/i.test(normUserMsg) &&
+            /\b(habitacion|habitaciones|cabana|cabanas|suite|suites|noire|blanc)\b/i.test(normUserMsg));
+
+        const promisesSuitePhotos =
+          promisesAttachment && /\b(foto|fotos|imagen|imagenes|suite|suites|cabana|cabanas|noire|blanc)\b/i.test(normReply);
+
+        const hasSuiteDocRequested = requestedDocuments.some(d => /\b(noire|blanc)\b/i.test(normalizeText(d)));
+
+        const noireSources = aiConfig.knowledgeSources.filter(
+          s => s.type === 'file' && /\bnoire\b/i.test(normalizeText(`${s.name} ${s.alias || ''}`))
+        );
+        const blancSources = aiConfig.knowledgeSources.filter(
+          s => s.type === 'file' && /\bblanc\b/i.test(normalizeText(`${s.name} ${s.alias || ''}`))
+        );
+
+        const userOnlyAskedNoire = /\bnoire\b/i.test(normUserMsg) && !/\bblanc\b/i.test(normUserMsg);
+        const userOnlyAskedBlanc = /\bblanc\b/i.test(normUserMsg) && !/\bnoire\b/i.test(normUserMsg);
+        const policyCode = photoSuitePolicy?.policyCode || 'NO_DATE_SHOW_BOTH';
+
+        if (policyCode === 'DATE_BLANC_BUSY_SHOW_ONLY_NOIRE') {
+          // Blanc está ocupada para la fecha definida -> Prohibido enviar fotos de Blanc, enviar solo Noire
+          requestedDocuments = requestedDocuments.filter(doc => !/\bblanc\b/i.test(normalizeText(doc)));
+          if (asksForSuitePhotos || promisesSuitePhotos || hasSuiteDocRequested) {
+            noireSources.forEach(s => requestedDocuments.push(s.name));
+          }
+        } else if (policyCode === 'DATE_NOIRE_BUSY_SHOW_ONLY_BLANC') {
+          // Noire está ocupada para la fecha definida -> Prohibido enviar fotos de Noire, enviar solo Blanc
+          requestedDocuments = requestedDocuments.filter(doc => !/\bnoire\b/i.test(normalizeText(doc)));
+          if (asksForSuitePhotos || promisesSuitePhotos || hasSuiteDocRequested) {
+            blancSources.forEach(s => requestedDocuments.push(s.name));
+          }
+        } else if (policyCode === 'NO_DATE_SHOW_BOTH' || policyCode === 'DATE_BOTH_AVAILABLE_SHOW_BOTH') {
+          // Sin fecha definida o ambas disponibles para la fecha definida -> Mostrar fotos de las dos cabañas
+          if (asksForSuitePhotos || promisesSuitePhotos || hasSuiteDocRequested) {
+            if (userOnlyAskedNoire) {
+              noireSources.forEach(s => requestedDocuments.push(s.name));
+            } else if (userOnlyAskedBlanc) {
+              blancSources.forEach(s => requestedDocuments.push(s.name));
+            } else {
+              noireSources.forEach(s => requestedDocuments.push(s.name));
+              blancSources.forEach(s => requestedDocuments.push(s.name));
+            }
+          }
+        }
+      }
 
       // Si el cliente pregunta por almorzar, cenar, restaurante o alimentación (y NO pidió expresamente el PDF del minibar/licores):
       // 1. No adjuntar "La_Font_Ecolodge_Menu_Habitacion.pdf" (solo se menciona en texto lo que tiene el minibar en Otras Bebidas y Snacks).
@@ -1072,11 +1134,22 @@ const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '', arg6 = n
         const targetNoExt = normTarget.replace(/\.[^/.]+$/, '');
         const targetWords = extractKeywords(reqDocName);
 
-        const matchedSource = aiConfig.knowledgeSources.find(src => {
+        const matchedSources = aiConfig.knowledgeSources.filter(src => {
           if (src.type !== 'file') return false;
           const normName = normalizeText(src.name).replace(/huspedes/g, 'huespedes');
           const normNameNoExt = normName.replace(/\.[^/.]+$/, '');
           const normAlias = normalizeText(src.alias).replace(/huspedes/g, 'huespedes');
+          const combinedSrcText = `${normName} ${normAlias}`;
+
+          // Salvaguarda determinística: no enviar fotos/archivos de una suite ocupada cuando el cliente ya definió fecha
+          if (isNoireBlancHotel && photoSuitePolicy?.hasDefinedDate) {
+            if (photoSuitePolicy.policyCode === 'DATE_BLANC_BUSY_SHOW_ONLY_NOIRE' && /\bblanc\b/i.test(combinedSrcText) && !/\bnoire\b/i.test(combinedSrcText)) {
+              return false;
+            }
+            if (photoSuitePolicy.policyCode === 'DATE_NOIRE_BUSY_SHOW_ONLY_BLANC' && /\bnoire\b/i.test(combinedSrcText) && !/\bblanc\b/i.test(combinedSrcText)) {
+              return false;
+            }
+          }
 
           if (
             normName === normTarget ||
@@ -1100,43 +1173,45 @@ const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '', arg6 = n
           return false;
         });
 
-        if (matchedSource && !sentSourceIds.has(matchedSource.id || matchedSource.name)) {
-          sentSourceIds.add(matchedSource.id || matchedSource.name);
-          let fileBuffer = null;
-          if (matchedSource.filePath && fs.existsSync(matchedSource.filePath)) {
-            fileBuffer = fs.readFileSync(matchedSource.filePath);
-          } else if (matchedSource.fileDataBase64) {
-            fileBuffer = Buffer.from(matchedSource.fileDataBase64, 'base64');
-            // Reconstruir en disco si no existía
-            if (matchedSource.filePath) {
-              try {
-                fs.mkdirSync(path.dirname(matchedSource.filePath), { recursive: true });
-                fs.writeFileSync(matchedSource.filePath, fileBuffer);
-              } catch (e) {}
-            }
-          }
-
-          if (fileBuffer) {
-            try {
-              if (typeof sendDocumentCallback === 'function') {
-                await sendDocumentCallback({
-                  fileBuffer,
-                  fileName: matchedSource.name,
-                  mimeType: matchedSource.mimeType || 'application/pdf',
-                  caption: matchedSource.alias || matchedSource.name
-                });
-              } else {
-                const baileysService = require('../services/baileysService');
-                await baileysService.sendDirectDocument(branch._id, cleanFrom, {
-                  fileBuffer,
-                  fileName: matchedSource.name,
-                  mimeType: matchedSource.mimeType || 'application/pdf',
-                  caption: matchedSource.alias || matchedSource.name
-                });
+        for (const matchedSource of matchedSources) {
+          if (matchedSource && !sentSourceIds.has(matchedSource.id || matchedSource.name)) {
+            sentSourceIds.add(matchedSource.id || matchedSource.name);
+            let fileBuffer = null;
+            if (matchedSource.filePath && fs.existsSync(matchedSource.filePath)) {
+              fileBuffer = fs.readFileSync(matchedSource.filePath);
+            } else if (matchedSource.fileDataBase64) {
+              fileBuffer = Buffer.from(matchedSource.fileDataBase64, 'base64');
+              // Reconstruir en disco si no existía
+              if (matchedSource.filePath) {
+                try {
+                  fs.mkdirSync(path.dirname(matchedSource.filePath), { recursive: true });
+                  fs.writeFileSync(matchedSource.filePath, fileBuffer);
+                } catch (e) {}
               }
-              console.log(`📎 [Documento RAG Enviado] "${matchedSource.name}" enviado exitosamente al cliente ${cleanFrom}.`);
-            } catch (docErr) {
-              console.error(`[Documento RAG] Error enviando archivo "${matchedSource.name}" a ${cleanFrom}:`, docErr.message);
+            }
+
+            if (fileBuffer) {
+              try {
+                if (typeof sendDocumentCallback === 'function') {
+                  await sendDocumentCallback({
+                    fileBuffer,
+                    fileName: matchedSource.name,
+                    mimeType: matchedSource.mimeType || 'application/pdf',
+                    caption: matchedSource.alias || matchedSource.name
+                  });
+                } else {
+                  const baileysService = require('../services/baileysService');
+                  await baileysService.sendDirectDocument(branch._id, cleanFrom, {
+                    fileBuffer,
+                    fileName: matchedSource.name,
+                    mimeType: matchedSource.mimeType || 'application/pdf',
+                    caption: matchedSource.alias || matchedSource.name
+                  });
+                }
+                console.log(`📎 [Documento RAG Enviado] "${matchedSource.name}" enviado exitosamente al cliente ${cleanFrom}.`);
+              } catch (docErr) {
+                console.error(`[Documento RAG] Error enviando archivo "${matchedSource.name}" a ${cleanFrom}:`, docErr.message);
+              }
             }
           }
         }
