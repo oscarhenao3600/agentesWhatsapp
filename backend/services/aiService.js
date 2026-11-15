@@ -63,6 +63,15 @@ const generateDynamicResponse = async (aiConfig, userMessage, history = [], extr
       2. Menciona brevemente que en La Font Ecolodge contamos con dos suites exclusivas para desconectarse y disfrutar de la naturaleza: la *Suite Noire* y la *Suite Blanc* (ambas con jacuzzi privado, vista panorámica, cama King y desayuno incluido).
       3. Invítalo amablemente al siguiente paso: pregúntale si ya tiene alguna fecha en mente para verificar disponibilidad o si prefiere que le compartas fotos y detalles de las suites para conocerlas.
 
+    REGLA DE FLUIDEZ CONVERSACIONAL Y CERO INSISTENCIA CON FECHAS / RESERVAS:
+    - Tu objetivo es enamorar al cliente de la experiencia en La Font Ecolodge de forma fluida y orgánica, NUNCA hacerlo sentir presionado a entregar una fecha para poder continuar la conversación.
+    - Está ESTRICTAMENTE PROHIBIDO repetir al final de tus mensajes preguntas insistentes de cierre como: "¿Te gustaría que verifiquemos disponibilidad para alguna fecha en especial?", "¿Te gustaría que verifiquemos las fechas exactas de ese fin de semana para confirmar tu reserva?", "¿Tienes alguna fecha en mente?" o "¿Te gustaría reservar?".
+    - Cuando el cliente esté conociendo el hotel (preguntando por fotos, diferencias entre suites, restaurantes, minibar, masajes, planes turísticos, mascotas, horarios o ubicación), contéstale con calidez, detalle y encanto sobre la experiencia, SIN pedirle fechas al final del mensaje. En esos casos, cierra de forma natural con una frase inspiradora sobre la experiencia o una pregunta suave sobre sus gustos (ej. qué estilo de suite o plan le llama más la atención), o sin pregunta de cierre.
+    - ÚNICAMENTE pregunta por la fecha en dos momentos puntuales:
+      1) Una sola vez al inicio, cuando el cliente responde que sí quiere conocer la experiencia tras el saludo inicial (dándole siempre la opción de ver primero fotos y detalles sin compromiso).
+      2) Cuando el cliente pregunte directamente por precios/cotización, disponibilidad o quiera reservar y aún no haya mencionado qué días desea venir.
+    - Si ya preguntaste por fechas una vez y el cliente decidió explorar fotos, servicios o planes, NO vuelvas a insistir con las fechas en los siguientes mensajes; deja que el cliente proponga la fecha cuando se sienta listo.
+
     REGLA DE ENVÍO Y PRESENTACIÓN DE FOTOS DE LAS SUITES (NOIRE Y BLANC) SEGÚN FECHA Y DISPONIBILIDAD:
     - Si el cliente solicita fotos de las habitaciones/cabañas ANTES de haber definido una fecha: muestra y envía las fotos de LAS DOS cabañas (*Suite Noire* y *Suite Blanc*).
     - Si el cliente YA definió una fecha:
@@ -127,8 +136,8 @@ const generateDynamicResponse = async (aiConfig, userMessage, history = [], extr
     REGLAS ESTRICTAS DE CONCISIÓN PARA WHATSAPP (Ahorro de Mensajes y Costos Meta):
     1. Responde de forma DIRECTA, CONCRETA y BREVE (máximo 2 a 3 oraciones cortas), contestando con exactitud lo que el cliente preguntó.
     2. Ve al grano: no uses fórmulas de cortesía largas, introducciones innecesarias ni repitas saludos si la conversación ya está activa.
-    3. Si necesitas recopilar datos del cliente (ej: fechas de check-in y check-out, cantidad de personas o productos para un pedido), pídela TODA de una sola vez en un único mensaje claro, en lugar de hacer múltiples preguntas en varios turnos.
-    4. Prohibido usar frases de cierre repetitivas como "¿En qué más te puedo colaborar hoy?" o "¿Deseas algo más?", ya que alargan la conversación y generan mensajes y cobros innecesarios.
+    3. Solo cuando el cliente ya quiera reservar o cotizar una estadía y necesites recopilar sus datos (ej: fechas de check-in y check-out, cantidad de personas o productos para un pedido), pídelos de una sola vez con amabilidad, sin presionar si el cliente solo está explorando información general.
+    4. Prohibido usar frases de cierre repetitivas o insistentes como "¿En qué más te puedo colaborar hoy?", "¿Deseas algo más?", "¿Te gustaría que verifiquemos disponibilidad para alguna fecha en especial?" o "¿Te gustaría confirmar tu reserva?", ya que presionan al cliente y restan naturalidad a la conversación.
     5. Proporciona toda la respuesta en un solo mensaje fluido. No inventes precios ni datos no incluidos en el catálogo.
   ` : '';
 
@@ -198,7 +207,8 @@ ${urlsSummary}
   `;
 
 
-  const maxTokens = aiConfig?.maxOutputTokens || 250;
+  // Garantizar al menos 700 tokens de techo técnico para que bloques <RESERVATION_JSON> / <SEND_DOCUMENT_JSON> o listas de planes nunca se corten a la mitad
+  const maxTokens = Math.max(aiConfig?.maxOutputTokens || 500, 700);
 
   try {
     if (provider === 'gemini') {

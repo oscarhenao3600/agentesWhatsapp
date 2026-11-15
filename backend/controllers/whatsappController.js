@@ -815,6 +815,12 @@ const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '', arg6 = n
       cleanResponse = cleanResponse.replace(/\[ENVIAR_DOC:\s*[^\]]+\]/gi, '').trim();
     }
 
+    // Limpiar posibles etiquetas internas no cerradas y conectores huérfanos ("mediante  para que")
+    cleanResponse = cleanResponse
+      .replace(/<(?:ORDER_JSON|RESERVATION_JSON|ADMIN_QUERY_JSON|SEND_DOCUMENT_JSON)>[\s\S]*$/gi, '')
+      .replace(/\bmediante\s+(?=para\s+que\b)/gi, '')
+      .trim();
+
     // Salvaguarda determinística de tarifas para La Font Ecolodge (Suites Noire y Blanc):
     // Evita que un signo "$" quede huérfano sin número o que se cuele una tarifa alucinada (ej. $350.000)
     if (isNoireBlancHotel) {
