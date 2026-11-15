@@ -716,10 +716,11 @@ const formatCalendarAvailabilityForPrompt = (busyEvents = [], { userMessage = ''
   }
 
   const lines = [];
-  lines.push(`📅 FECHA Y HORA ACTUAL DEL SISTEMA (Colombia): ${todayHuman} - ${bogotaTimeHuman} (franja: ${periodName}, saludo sugerido si es primer contacto: "${greetingByTime}")`);
+  lines.push(`📅 FECHA Y HORA ACTUAL DEL SISTEMA (Colombia): ${todayHuman} - ${bogotaTimeHuman} (franja: ${periodName})`);
   if (isNoireBlancHotel) {
-    lines.push(`👋 FORMATO DE SALUDO INICIAL (Solo en el primer mensaje de la conversación):`);
-    lines.push(`   "${greetingByTime} Qué gusto saludarte. Soy Lucas, asesor virtual de La Font Ecolodge, en Buenavista, Quindío. 🌿✨\n\nCuéntame, ¿estás pensando en regalarte una escapada y conocer nuestra experiencia?"`);
+    lines.push(`👋 FORMATO DE SALUDO INICIAL (Cuando el cliente saluda o en el primer mensaje de la conversación):`);
+    lines.push(`   "¡Hola!… Soy Lucas, asesor virtual de La Font Ecolodge. 🌿✨\n\nQué alegría que estés pensando en nosotros para tu próxima escapada.\n\nCuéntame, ¿qué te gustaría saber? ¡Será un gusto ayudarte! 🤩"`);
+    lines.push(`✍️ REGLA INQUEBRANTABLE DE ORTOGRAFÍA Y GRAMÁTICA (CERO ERRORES): Revisa minuciosamente cada palabra antes de responder. Está ESTRICTAMENTE PROHIBIDO cometer errores ortográficos, de digitación (typos como "planendando" en lugar de "planeando"), repetición de palabras ("el el") o falta de tildes y signos de apertura (¿ / ¡).`);
     lines.push(`🏨 UNIDADES Y CAPACIDAD DEL ALOJAMIENTO: Este hotel cuenta ÚNICAMENTE con 2 suites en total: Suite Noire y Suite Blanc.`);
     lines.push(`⚠️ REGLA DE OCUPACIÓN POR NOCHE: Cada fecha listada corresponde a la NOCHE de hospedaje (Check-in a las 3:00 PM de ese día y Check-out a las 12:00 PM del día siguiente; o late check-out hasta la 1:30 p. m. en noches de Experiencia Premium). Si para una noche tanto Noire como Blanc aparecen OCUPADAS, significa que NO HAY NINGUNA SUITE DISPONIBLE para esa noche.`);
     lines.push(`💵 REGLA INQUEBRANTABLE DE TARIFAS OFICIALES (POR NOCHE Y POR SUITE):`);
