@@ -676,7 +676,8 @@ const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '', arg6 = n
 
         let busyEvents = [];
         if (aiConfig.calendarSyncEnabled) {
-          let minDate = new Date(Date.now() - 24 * 60 * 60 * 1000);
+          // Consultar desde 60 días atrás para detectar también reservaciones aplazadas recientes
+          let minDate = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
           let maxDate = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
           for (const qYmd of queriedDates) {
             const qDate = new Date(`${qYmd}T12:00:00-05:00`);
@@ -698,7 +699,13 @@ const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '', arg6 = n
         extraContext.calendarAvailability = formatCalendarAvailabilityForPrompt(busyEvents, {
           userMessage: messageText,
           history,
-          aiConfig
+          aiConfig,
+          customerContext: {
+            cleanFrom,
+            extraPhone,
+            contactName,
+            customerName: conversation.customerName
+          }
         });
       } catch (calErr) {
         console.warn('[GoogleCalendar] Error consultando disponibilidad para el prompt:', calErr.message);

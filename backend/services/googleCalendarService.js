@@ -174,12 +174,44 @@ const formatHumanDateEs = (ymd) => {
 };
 
 /**
- * Detecta si el resumen de un evento es una nota operativa interna (deuda, masaje, decoración, transporte, mascota)
+ * Normaliza texto para comparaciones tolerantes a tildes y mayúsculas
+ */
+const normalizeMatchText = (value = '') =>
+  String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+
+/**
+ * Extrae únicamente dígitos de un teléfono y conserva los últimos 10 dígitos para comparación
+ */
+const normalizePhoneDigits = (value = '') => {
+  const digits = String(value || '').replace(/\D/g, '');
+  if (!digits) return { full: '', last10: '' };
+  return {
+    full: digits,
+    last10: digits.length >= 10 ? digits.slice(-10) : digits
+  };
+};
+
+/**
+ * Detecta si un evento corresponde a una reserva aplazada (ej. "APLAZAMIENTO francy escobar...")
+ */
+const isPostponementEvent = (summary = '', description = '') => {
+  const combined = normalizeMatchText(`${summary || ''} ${description || ''}`);
+  if (!combined) return false;
+  return /\b(aplazamiento|aplazad[oa]s?|reprogramaci[oó]n|postergad[oa]s?)\b/i.test(combined);
+};
+
+/**
+ * Detecta si el resumen de un evento es una nota operativa interna (deuda, masaje, decoración, transporte, mascota, aplazamiento)
  * que no representa por sí misma un bloqueo de habitación adicional.
  */
 const isAuxiliaryCalendarNote = (summary = '') => {
   const s = String(summary).trim();
   if (!s) return false;
+  if (isPostponementEvent(s)) return true;
   return /\bdebe\b|\bdecor|\bmasaje|\brelajante|\btransporte|\bmascota|\bcortes[ií]a/i.test(s);
 };
 
@@ -468,6 +500,7 @@ const getCalendarBusyRanges = async (aiConfig, startDate, endDate) => {
     return items.map(ev => ({
       id: ev.id,
       summary: ev.summary || 'Ocupado',
+      description: ev.description || '',
       start: ev.start?.dateTime || ev.start?.date,
       end: ev.end?.dateTime || ev.end?.date,
       isAllDay: Boolean(ev.start?.date && !ev.start?.dateTime)
@@ -486,7 +519,7 @@ const buildOccupancyByNight = (busyEvents = []) => {
 
   for (const ev of busyEvents) {
     if (!ev || !ev.start) continue;
-    if (isAuxiliaryCalendarNote(ev.summary)) continue;
+    if (isAuxiliaryCalendarNote(ev.summary) || isPostponementEvent(ev.summary, ev.description)) continue;
 
     const startYmd = toBogotaDateStr(ev.start);
     const endYmd = ev.end ? toBogotaDateStr(ev.end) : addDaysToDateStr(startYmd, 1);
@@ -621,9 +654,154 @@ const resolvePhotoSuitePolicy = (busyEvents = [], { userMessage = '', history = 
 };
 
 /**
+ * Extrae datos estructurados de un evento de reserva aplazada en Google Calendar
+ */
+const parsePostponementEvent = (ev = {}) => {
+  const summary = String(ev.summary || '').trim();
+  const description = String(ev.description || '').trim();
+  const combined = `${summary} ${description}`.trim();
+
+  // Extraer teléfonos (7 a 15 dígitos, permitiendo espacios, guiones o +57)
+  const phoneMatches = combined.match(/(?:\+?\d[\d\s-]{5,15}\d)/g) || [];
+  const phones = [];
+  for (const rawPhone of phoneMatches) {
+    // Evitar confundir valores monetarios ($200.000) con teléfonos si vienen precedidos de $
+    const idx = combined.indexOf(rawPhone);
+    if (idx > 0 && combined[idx - 1] === '$') continue;
+    const norm = normalizePhoneDigits(rawPhone);
+    if (norm.full.length >= 7 && norm.full.length <= 15) {
+      phones.push(norm);
+    }
+  }
+
+  // Extraer menciones de usuario de WhatsApp (@usuario)
+  const handleMatches = [...combined.matchAll(/@([a-zA-Z0-9._-]{2,})/g)].map(m => normalizeMatchText(m[1]));
+  const whatsappHandles = [...new Set(handleMatches)];
+
+  // Detectar suite si se especificó en el evento
+  const detectedSuites = detectEventSuite(combined).filter(s => s !== 'General');
+
+  // Detectar abono si se especificó (ej. "abono $200.000")
+  const abonoMatch = combined.match(/abono\s*(?:de)?\s*:?\s*(\$?\s*[\d.,]+)/i);
+  const abono = abonoMatch ? abonoMatch[1].replace(/\s+/g, '') : '';
+
+  // Extraer pista de nombre/procedencia limpiando palabras clave, montos, suite y teléfonos
+  let nameHint = summary
+    .replace(/\b(aplazamiento|aplazad[oa]s?|reprogramaci[oó]n|postergad[oa]s?)\b/gi, ' ')
+    .replace(/\b(suite|caba[nñ]a|habitaci[oó]n)\s+(noire|blanc)\b/gi, ' ')
+    .replace(/\b(noire|blanc)\b/gi, ' ')
+    .replace(/abono\s*(?:de)?\s*:?\s*\$?\s*[\d.,]+/gi, ' ')
+    .replace(/\$[\d.,]+/g, ' ')
+    .replace(/@[a-zA-Z0-9._-]+/g, ' ')
+    .replace(/(?:\+?\d[\d\s-]{5,15}\d)/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const originalDateYmd = ev.start ? toBogotaDateStr(ev.start) : '';
+  const originalDateHuman = originalDateYmd ? formatHumanDateEs(originalDateYmd) : '';
+
+  return {
+    id: ev.id || '',
+    rawSummary: summary,
+    rawDescription: description,
+    originalDateYmd,
+    originalDateHuman,
+    suites: detectedSuites,
+    abono,
+    phones,
+    whatsappHandles,
+    nameHint
+  };
+};
+
+/**
+ * Busca eventos de aplazamiento en el calendario y determina cuáles coinciden con el cliente actual
+ * por número de teléfono, @usuario de WhatsApp o nombre.
+ */
+const findMatchingPostponements = (busyEvents = [], customerContext = {}) => {
+  const postponementEvents = (busyEvents || []).filter(ev =>
+    ev && isPostponementEvent(ev.summary, ev.description)
+  );
+
+  if (postponementEvents.length === 0) {
+    return { matchedPostponements: [], allPostponements: [] };
+  }
+
+  const parsedList = postponementEvents.map(parsePostponementEvent);
+
+  const candidatePhones = [customerContext.cleanFrom, customerContext.extraPhone]
+    .filter(Boolean)
+    .map(normalizePhoneDigits)
+    .filter(p => p.full.length >= 7);
+
+  const candidateNames = [customerContext.contactName, customerContext.customerName]
+    .filter(Boolean)
+    .map(normalizeMatchText)
+    .map(n => n.replace(/^@+/, '').trim())
+    .filter(n => n.length >= 2);
+
+  const recentUserText = normalizeMatchText([
+    ...(Array.isArray(customerContext.history)
+      ? customerContext.history.filter(m => m.role === 'user').slice(-4).map(m => m.content || '')
+      : []),
+    customerContext.userMessage || ''
+  ].join(' '));
+
+  const matchedPostponements = [];
+
+  for (const item of parsedList) {
+    let matchReason = '';
+
+    // 1. Coincidencia exacta por teléfono (últimos 10 dígitos o completo)
+    for (const cPhone of candidatePhones) {
+      if (item.phones.some(p => p.last10 === cPhone.last10 || p.full === cPhone.full)) {
+        matchReason = 'teléfono';
+        break;
+      }
+    }
+
+    // 2. Coincidencia por @usuario de WhatsApp
+    if (!matchReason && item.whatsappHandles.length > 0) {
+      for (const handle of item.whatsappHandles) {
+        if (candidateNames.some(cn => cn === handle || cn.includes(handle) || handle.includes(cn))) {
+          matchReason = '@usuario';
+          break;
+        }
+      }
+    }
+
+    // 3. Coincidencia por nombre (en contactName/customerName o mencionado por el usuario en el chat)
+    if (!matchReason && item.nameHint) {
+      const hintTokens = normalizeMatchText(item.nameHint)
+        .split(/\s+/)
+        .filter(t => t.length >= 3);
+      if (hintTokens.length >= 2) {
+        const textSources = [...candidateNames, recentUserText].filter(Boolean);
+        for (const src of textSources) {
+          const matchingTokens = hintTokens.filter(t => new RegExp(`\\b${t}\\b`, 'i').test(src));
+          if (matchingTokens.length >= 2) {
+            matchReason = 'nombre';
+            break;
+          }
+        }
+      }
+    }
+
+    if (matchReason) {
+      matchedPostponements.push({ ...item, matchReason });
+    }
+  }
+
+  return {
+    matchedPostponements,
+    allPostponements: parsedList
+  };
+};
+
+/**
  * Genera el reporte detallado de disponibilidad para inyectar a la IA, destacando las fechas consultadas por el cliente
  */
-const formatCalendarAvailabilityForPrompt = (busyEvents = [], { userMessage = '', history = [], aiConfig = null } = {}) => {
+const formatCalendarAvailabilityForPrompt = (busyEvents = [], { userMessage = '', history = [], aiConfig = null, customerContext = null } = {}) => {
   const todayYmd = toBogotaDateStr(new Date());
   const todayHuman = formatHumanDateEs(todayYmd);
 
@@ -794,6 +972,39 @@ const formatCalendarAvailabilityForPrompt = (busyEvents = [], { userMessage = ''
     lines.push(`\n📋 Actualmente no hay noches ocupadas registradas a partir de hoy (${todayYmd}).`);
   }
 
+  // Detectar reservas aplazadas en el calendario y cruzarlas con el cliente actual
+  const { matchedPostponements, allPostponements } = findMatchingPostponements(busyEvents, {
+    ...(customerContext || {}),
+    userMessage,
+    history
+  });
+
+  if (matchedPostponements.length > 0) {
+    lines.push(`\n🔄 RESERVACIÓN APLAZADA DETECTADA PARA ESTE CLIENTE (Coincidencia por ${matchedPostponements.map(m => m.matchReason).join(', ')}):`);
+    for (const mp of matchedPostponements) {
+      const details = [
+        `Registro en calendario: "${mp.rawSummary}"`,
+        mp.originalDateHuman ? `Fecha original marcada: ${mp.originalDateHuman}` : '',
+        mp.nameHint ? `Nombre/referencia: ${mp.nameHint}` : '',
+        mp.suites.length > 0 ? `Suite original: ${mp.suites.join(', ')}` : '',
+        mp.abono ? `Abono registrado: ${mp.abono}` : '',
+        mp.rawDescription ? `Notas adicionales: ${mp.rawDescription}` : ''
+      ].filter(Boolean).join(' | ');
+      lines.push(`  • ${details}`);
+    }
+    lines.push(`  📌 REGLA DE ATENCIÓN PARA CLIENTE CON RESERVA APLAZADA:`);
+    lines.push(`    1. Saluda al cliente con calidez por su nombre (usando el nombre registrado arriba o su nombre de WhatsApp).`);
+    lines.push(`    2. NO menciones la reserva aplazada de forma espontánea si el cliente no ha hablado de retomar/reprogramar su estadía.`);
+    lines.push(`    3. ÚNICAMENTE cuando el cliente indique que quiere retomar o reprogramar su estadía, o haga referencia a dicha reservación aplazada, confírmale amablemente que se le tiene en cuenta su reserva aplazada (mencionando los datos que consten en el registro, como su abono o suite si figuran, sin inventar datos adicionales) y continúa resolviendo sus dudas para que fije la nueva fecha.`);
+    lines.push(`    4. La marca de aplazamiento en Google Calendar la gestiona manualmente el administrador; cuando el cliente confirme su nueva fecha, registra la nueva reservación normalmente.`);
+  } else if (allPostponements.length > 0) {
+    lines.push(`\n🔄 REGISTRO DE RESERVAS APLAZADAS EN CALENDARIO (Consultar SOLO si el cliente menciona que tiene una reserva aplazada y da su nombre, teléfono o @usuario):`);
+    for (const ap of allPostponements.slice(0, 20)) {
+      lines.push(`  • "${ap.rawSummary}"${ap.originalDateHuman ? ` (${ap.originalDateHuman})` : ''}`);
+    }
+    lines.push(`  📌 Si el cliente menciona que tenía una reserva aplazada y coincide con alguno de estos registros, confírmale que se le tiene en cuenta y ayúdale a resolver sus dudas para fijar la nueva fecha.`);
+  }
+
   return lines.join('\n');
 };
 
@@ -929,5 +1140,8 @@ module.exports = {
   extractQueriedDatesFromText,
   createReservationEvent,
   isColombianHoliday,
-  getNoireBlancNightRateInfo
+  getNoireBlancNightRateInfo,
+  isPostponementEvent,
+  parsePostponementEvent,
+  findMatchingPostponements
 };

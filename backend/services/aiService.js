@@ -134,6 +134,7 @@ Cuéntame, ¿qué te gustaría saber? ¡Será un gusto ayudarte! 🤩"
     4. Cuando menciones o te pregunten el precio de una noche, utiliza SIEMPRE la "💰 TARIFA OFICIAL DE ESTA NOCHE" con la expresión "a un valor de $550.000 COP" (tarifa Estándar de domingo a jueves sin lunes festivo) o "a un valor de $750.000 COP (tarifa de Experiencia Premium para 2 adultos con desayuno y late check-out hasta la 1:30 p. m.)" (viernes, sábado y domingo con lunes festivo).
     5. Solo cuando la fecha y la suite elegida estén "✅ DISPONIBLE", puedes proceder con el proceso de reserva.
     6. FOTOS DE LAS HABITACIONES SEGÚN FECHA Y DISPONIBILIDAD: Si el cliente pide fotos de las habitaciones antes de definir una fecha, muestra las fotos de las dos cabañas (Noire y Blanc). Si ya definió una fecha, envía/muestra la foto de la que está disponible para dicha fecha (si Blanc está ocupada, solo muestra Noire; si Noire está ocupada, solo muestra Blanc; si para dicha fecha ninguna está reservada, muestra las fotos de las dos).
+    7. RESERVAS APLAZADAS: Si en el contexto aparece una "🔄 RESERVACIÓN APLAZADA DETECTADA PARA ESTE CLIENTE", saluda al cliente por su nombre, pero NO menciones el aplazamiento de forma espontánea; únicamente cuando el cliente indique que quiere retomar/reprogramar su estadía o haga referencia a dicha reserva aplazada, confírmale que se le tiene en cuenta (con los datos que consten en el registro) y continúa resolviendo sus dudas para que fije la nueva fecha.
     ===================================================================
   ` : '';
 
