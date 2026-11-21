@@ -1064,7 +1064,9 @@ const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '', arg6 = n
             /\b(habitacion|habitaciones|cabana|cabanas|suite|suites|noire|blanc)\b/i.test(normUserMsg));
 
         const promisesSuitePhotos =
-          promisesAttachment && /\b(foto|fotos|imagen|imagenes|suite|suites|cabana|cabanas|noire|blanc)\b/i.test(normReply);
+          promisesAttachment &&
+          /\b(foto|fotos|fotografia|fotografias|imagen|imagenes)\b/i.test(normReply) &&
+          /\b(suite|suites|cabana|cabanas|habitacion|habitaciones|noire|blanc)\b/i.test(normReply);
 
         const hasSuiteDocRequested = requestedDocuments.some(d => /\b(noire|blanc)\b/i.test(normalizeText(d)));
 
@@ -1109,10 +1111,16 @@ const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '', arg6 = n
       // Si el cliente pregunta por almorzar, cenar, restaurante o alimentación (y NO pidió expresamente el PDF del minibar/licores):
       // 1. No adjuntar "La_Font_Ecolodge_Menu_Habitacion.pdf" (solo se menciona en texto lo que tiene el minibar en Otras Bebidas y Snacks).
       // 2. Asegurar que se envíen los menús de los restaurantes aliados ("CARTA MENU TERRA.pdf", "Menu Domingo.pdf", "Shoppers caicedonia.pdf").
+      const isExplicitRestaurantOrMeal = /\b(almorz|almuerz|cenar|cena|restaurante|restaurantes|domicilio|aliado|aliados)\b/i.test(normUserMsg);
       const isMealOrRestaurantQuery = /\b(almorz|almuerz|cenar|cena|restaurante|comida|comer|alimentaci)\b/i.test(normUserMsg);
-      const isExplicitMinibarQuery = /\b(minibar|licor|cerveza|vino|whisky|tequila)\b/i.test(normUserMsg);
+      const isRoomOrMinibarQuery =
+        /\b(minibar|licor|cerveza|vino|whisky|tequila|snack|snacks|en\s+la\s+(?:habitacion|suite|cabana)|de\s+la\s+(?:habitacion|suite|cabana)|en\s+(?:habitacion|suite|cabana))\b/i.test(normUserMsg) ||
+        (/\bminibar\b/i.test(normReply) && !/\brestaurante\w*\s+aliad/i.test(normReply));
 
-      if (isMealOrRestaurantQuery && !isExplicitMinibarQuery) {
+      if (isRoomOrMinibarQuery && !isExplicitRestaurantOrMeal) {
+        requestedDocuments = requestedDocuments.filter(doc => !/terra|domingo|shoppers/i.test(normalizeText(doc)));
+        requestedDocuments.push('La_Font_Ecolodge_Menu_Habitacion.pdf');
+      } else if (isMealOrRestaurantQuery && !isRoomOrMinibarQuery) {
         requestedDocuments = requestedDocuments.filter(doc => !/menu[_\s-]*habitacion|minibar/i.test(normalizeText(doc)));
         if (/\bcaicedonia\b|\bshoppers\b/i.test(normUserMsg) && !/\bbuenavista\b|\bterra\b/i.test(normUserMsg)) {
           requestedDocuments.push('Shoppers caicedonia.pdf');
