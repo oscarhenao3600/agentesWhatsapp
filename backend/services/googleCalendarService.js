@@ -490,6 +490,26 @@ const extractQueriedDatesFromText = (text = '', referenceDate = new Date()) => {
     }
   }
 
+  // 7. Día único sin mes explícito (ej. "para el 3", "el día 3", "disponibilidad para el 15")
+  if (foundDates.size === 0) {
+    const singleDayOnlyRegex = new RegExp(
+      `\\b(?:para\\s+el(?:\\s+dia)?|el\\s+dia|del\\s+dia|disponibilidad\\s+(?:para\\s+)?el)\\s+(\\d{1,2})\\b(?!\\s*(?:al|a|y|hasta|-|\\/)\\s*\\d|\\s*(?:de\\s+|d[e']\\s*)?(?:${monthNamesPattern})|\\s*(?:personas?|adultos?|huespedes?|noches?|dias?|pm|am|horas?|cop|\\$|%))`,
+      'gi'
+    );
+    for (const m of norm.matchAll(singleDayOnlyRegex)) {
+      const d = Number(m[1]);
+      if (d >= 1 && d <= 31) {
+        let targetMonth = refMonth;
+        let targetYear = refYear;
+        if (d < refDay) {
+          targetMonth = refMonth === 12 ? 1 : refMonth + 1;
+          targetYear = refMonth === 12 ? refYear + 1 : refYear;
+        }
+        addSafeYmd(targetYear, targetMonth, d);
+      }
+    }
+  }
+
   return [...foundDates].sort();
 };
 
