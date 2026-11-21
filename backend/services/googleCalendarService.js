@@ -468,6 +468,28 @@ const extractQueriedDatesFromText = (text = '', referenceDate = new Date()) => {
     addSafeYmd(year, monthNum, day);
   }
 
+  // 6. Rangos de días sin mes explícito (ej. "del 5 al 6", "del 5 al día 6", "para el 5 y 6")
+  // Si el día inicial es menor al día actual, se asume el próximo mes; de lo contrario el mes actual.
+  const dayOnlyRangeRegex = new RegExp(
+    `\\b(?:del(?:\\s+dia)?|para\\s+el|entre\\s+el)\\s+(\\d{1,2})\\s*(?:al|a|y|hasta(?:\\s+el)?)\\s*(?:dia\\s+|el\\s+)?(\\d{1,2})\\b(?!\\s*(?:de\\s+|d[e']\\s*)?(?:${monthNamesPattern})|\\s*[\\/\\-])`,
+    'gi'
+  );
+  for (const m of norm.matchAll(dayOnlyRangeRegex)) {
+    const d1 = Number(m[1]);
+    const d2 = Number(m[2]);
+    if (d1 >= 1 && d1 <= 31 && d2 >= d1 && (d2 - d1) <= 15) {
+      let targetMonth = refMonth;
+      let targetYear = refYear;
+      if (d1 < refDay) {
+        targetMonth = refMonth === 12 ? 1 : refMonth + 1;
+        targetYear = refMonth === 12 ? refYear + 1 : refYear;
+      }
+      for (let d = d1; d <= d2; d++) {
+        addSafeYmd(targetYear, targetMonth, d);
+      }
+    }
+  }
+
   return [...foundDates].sort();
 };
 
@@ -895,9 +917,14 @@ const formatCalendarAvailabilityForPrompt = (busyEvents = [], { userMessage = ''
 
   const lines = [];
   lines.push(`📅 FECHA Y HORA ACTUAL DEL SISTEMA (Colombia): ${todayHuman} - ${bogotaTimeHuman} (franja: ${periodName})`);
+  const isFirstConversationTurn = !Array.isArray(history) || history.length === 0;
   if (isNoireBlancHotel) {
-    lines.push(`👋 FORMATO DE SALUDO INICIAL (Cuando el cliente saluda o en el primer mensaje de la conversación):`);
-    lines.push(`   "¡Hola!… Soy Lucas, asesor virtual de La Font Ecolodge. 🌿✨\n\nQué alegría que estés pensando en nosotros para tu próxima escapada.\n\nCuéntame, ¿qué te gustaría saber? ¡Será un gusto ayudarte! 🤩"`);
+    if (isFirstConversationTurn) {
+      lines.push(`👋 FORMATO DE SALUDO INICIAL (Solo para el primer mensaje de la conversación):`);
+      lines.push(`   "¡Hola!… Soy Lucas, asesor virtual de La Font Ecolodge. 🌿✨\n\nQué alegría que estés pensando en nosotros para tu próxima escapada.\n\nCuéntame, ¿qué te gustaría saber? ¡Será un gusto ayudarte! 🤩"`);
+    } else {
+      lines.push(`💬 CONVERSACIÓN ACTIVA (YA SALUDADO): NO repitas el saludo oficial ni empieces con "Hola." cada respuesta; responde con naturalidad y continuidad al mensaje del cliente.`);
+    }
     lines.push(`✍️ REGLA INQUEBRANTABLE DE ORTOGRAFÍA Y GRAMÁTICA (CERO ERRORES): Revisa minuciosamente cada palabra antes de responder. Está ESTRICTAMENTE PROHIBIDO cometer errores ortográficos, de digitación (typos como "planendando" en lugar de "planeando"), repetición de palabras ("el el") o falta de tildes y signos de apertura (¿ / ¡).`);
     lines.push(`🏨 UNIDADES Y CAPACIDAD DEL ALOJAMIENTO: Este hotel cuenta ÚNICAMENTE con 2 suites en total: Suite Noire y Suite Blanc.`);
     lines.push(`⚠️ REGLA DE OCUPACIÓN POR NOCHE: Cada fecha listada corresponde a la NOCHE de hospedaje (Check-in a las 3:00 PM de ese día y Check-out a las 12:00 PM del día siguiente; o late check-out hasta la 1:30 p. m. en noches de Experiencia Premium). Si para una noche tanto Noire como Blanc aparecen OCUPADAS, significa que NO HAY NINGUNA SUITE DISPONIBLE para esa noche.`);

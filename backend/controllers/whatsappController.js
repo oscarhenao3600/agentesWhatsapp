@@ -648,11 +648,16 @@ const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '', arg6 = n
     }
 
 
-    // Historial reciente de los últimos 10 mensajes
-    const history = conversation.messages.slice(-10).map(msg => ({
-      role: msg.role,
-      content: msg.content
-    }));
+    // Historial reciente: máximo últimos 21 días (3 semanas) y hasta 10 mensajes
+    const THREE_WEEKS_MS = 21 * 24 * 60 * 60 * 1000;
+    const historyCutoff = Date.now() - THREE_WEEKS_MS;
+    const history = conversation.messages
+      .filter(msg => !msg.timestamp || new Date(msg.timestamp).getTime() >= historyCutoff)
+      .slice(-10)
+      .map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }));
 
     // 5. Preparar contexto adicional (ej: disponibilidad en tiempo real de Google Calendar y tarifas por fecha)
     let extraContext = {};
@@ -822,10 +827,11 @@ const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '', arg6 = n
       cleanResponse = cleanResponse.replace(/\[ENVIAR_DOC:\s*[^\]]+\]/gi, '').trim();
     }
 
-    // Limpiar posibles etiquetas internas no cerradas y conectores huérfanos ("mediante  para que")
+    // Limpiar posibles etiquetas internas no cerradas, conectores huérfanos y saltos de línea excesivos
     cleanResponse = cleanResponse
       .replace(/<(?:ORDER_JSON|RESERVATION_JSON|ADMIN_QUERY_JSON|SEND_DOCUMENT_JSON)>[\s\S]*$/gi, '')
       .replace(/\bmediante\s+(?=para\s+que\b)/gi, '')
+      .replace(/\n{3,}/g, '\n\n')
       .trim();
 
     // Salvaguarda determinística de tarifas para La Font Ecolodge (Suites Noire y Blanc):
