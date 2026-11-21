@@ -36,7 +36,7 @@ exports.getConversations = async (req, res) => {
         conv.shortId = conv._id.toString().slice(-4).toUpperCase();
         dirty = true;
       }
-      if (conv.botPausedUntil && new Date(conv.botPausedUntil) <= now) {
+      if (conv.pauseReason !== 'manual' && conv.botPausedUntil && new Date(conv.botPausedUntil) <= now) {
         conv.botPausedUntil = null;
         conv.pauseReason = 'none';
         dirty = true;
@@ -219,7 +219,8 @@ exports.toggleBotPause = async (req, res) => {
     }
 
     if (paused) {
-      conversation.botPausedUntil = new Date(Date.now() + Number(minutes) * 60 * 1000);
+      // Pausa manual indefinida: solo se reactiva cuando el administrador lo despause manualmente
+      conversation.botPausedUntil = new Date('2099-12-31T23:59:59.000Z');
       conversation.pauseReason = 'manual';
     } else {
       conversation.botPausedUntil = null;

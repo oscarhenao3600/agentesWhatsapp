@@ -142,6 +142,7 @@ const ChatsSidebarHeader = ({
 );
 
 const isBotCurrentlyPaused = (chat) => {
+  if (chat?.pauseReason === 'manual') return true;
   if (!chat?.botPausedUntil) return false;
   return new Date(chat.botPausedUntil) > new Date();
 };
@@ -213,7 +214,10 @@ const ChatListItem = ({ chat, isActive, isSelectionMode, isSelected, onSelectCha
                 </small>
               )}
               {paused && (
-                <small style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '6px', background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', fontWeight: '600' }} title={`Bot en pausa hasta ${formatPauseUntil(chat.botPausedUntil)}`}>
+                <small
+                  style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '6px', background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', fontWeight: '600' }}
+                  title={chat.pauseReason === 'manual' ? 'Bot pausado manualmente (solo se reactiva manualmente)' : `Bot en pausa hasta ${formatPauseUntil(chat.botPausedUntil)}`}
+                >
                   ⏸️ Admin
                 </small>
               )}
@@ -310,7 +314,9 @@ const ActiveChatView = ({ selectedChat, onBack, onDeleteSingle, onToggleBotPause
           </h3>
           {paused ? (
             <span className="status" style={{ color: '#f59e0b', fontWeight: '600' }}>
-              ⏸️ Bot en Pausa (Atención Admin hasta {formatPauseUntil(selectedChat.botPausedUntil)})
+              {selectedChat.pauseReason === 'manual'
+                ? '⏸️ Bot en Pausa (Manual — Solo se reactiva manualmente)'
+                : `⏸️ Bot en Pausa (Atención Admin hasta ${formatPauseUntil(selectedChat.botPausedUntil)})`}
             </span>
           ) : (
             <span className="status">IA Activa (Monitoreando)</span>
@@ -323,7 +329,7 @@ const ActiveChatView = ({ selectedChat, onBack, onDeleteSingle, onToggleBotPause
           className={paused ? 'btn-primary' : 'btn-secondary'}
           style={{ padding: '6px 12px', fontSize: '12px', borderRadius: '8px' }}
           onClick={() => onToggleBotPause(selectedChat, !paused)}
-          title={paused ? 'Reactivar respuestas automáticas del bot inmediatamente' : 'Pausar el bot por 40 minutos para atender manualmente'}
+          title={paused ? 'Reactivar respuestas automáticas del bot inmediatamente' : 'Pausar el bot manualmente hasta que decidas reactivarlo'}
         >
           {paused ? '▶️ Reactivar Bot' : '⏸️ Pausar Bot'}
         </button>
@@ -587,7 +593,7 @@ const Chats = () => {
     if (!chat?._id) return;
     try {
       const config = { headers: { Authorization: `Bearer ${user.token}` } };
-      const { data } = await axios.patch(`/api/chat/${chat._id}/bot-status`, { paused: shouldPause, minutes: 40 }, config);
+      const { data } = await axios.patch(`/api/chat/${chat._id}/bot-status`, { paused: shouldPause }, config);
       if (data.success && data.conversation) {
         setConversations((prev) => prev.map((c) => (c._id === chat._id ? data.conversation : c)));
         if (selectedChat?._id === chat._id) {

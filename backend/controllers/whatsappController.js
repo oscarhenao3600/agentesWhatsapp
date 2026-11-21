@@ -555,17 +555,20 @@ const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '', arg6 = n
     }
 
     // 4.5. VERIFICACIÓN DE PAUSA AUTOMÁTICA DEL BOT ("Hacerse a un lado" tras reserva/pedido o intervención manual)
-    if (conversation.botPausedUntil) {
+    if (conversation.pauseReason === 'manual' || conversation.botPausedUntil) {
       const now = new Date();
-      const pausedUntilDate = new Date(conversation.botPausedUntil);
-      if (now < pausedUntilDate) {
+      const isManualPause = conversation.pauseReason === 'manual';
+      const pausedUntilDate = conversation.botPausedUntil ? new Date(conversation.botPausedUntil) : null;
+      if (isManualPause || (pausedUntilDate && now < pausedUntilDate)) {
         const displayMsg = messageText || `[${mediaType || 'Multimedia'}]`;
         conversation.messages.push({ role: 'user', content: displayMsg });
         conversation.lastInteraction = now;
         await conversation.save();
 
-        const pauseUntilStr = pausedUntilDate.toLocaleString('es-CO', { timeZone: 'America/Bogota' });
-        console.log(`⏸️ [Bot en Pausa] Mensaje de ${cleanFrom} (Chat #${conversation.shortId}) registrado sin respuesta de IA. Bot pausado (${conversation.pauseReason}) hasta ${pauseUntilStr}.`);
+        const pauseUntilStr = isManualPause
+          ? 'Pausa manual (hasta reactivación del administrador)'
+          : pausedUntilDate.toLocaleString('es-CO', { timeZone: 'America/Bogota' });
+        console.log(`⏸️ [Bot en Pausa] Mensaje de ${cleanFrom} (Chat #${conversation.shortId}) registrado sin respuesta de IA. Modo: ${pauseUntilStr}.`);
 
         // Si el administrador de la sucursal tiene un número distinto al WhatsApp conectado de la sucursal,
         // reenviarle el mensaje con el #ID para que pueda atender o responder al cliente si lo desea.
@@ -575,7 +578,7 @@ const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '', arg6 = n
             `🆔 *ID Conversación:* #${conversation.shortId}`,
             `👤 *Cliente:* ${conversation.customerName || 'Cliente'} (${cleanFrom})`,
             `💬 *Mensaje:* "${displayMsg}"`,
-            `⏱️ *Bot en pausa hasta:* ${pauseUntilStr}`,
+            `⏱️ *Bot en pausa:* ${pauseUntilStr}`,
             ``,
             `✍️ *Para responderle por medio del bot, responde a este mensaje o escribe:*`,
             `#${conversation.shortId} Tu respuesta aquí`
