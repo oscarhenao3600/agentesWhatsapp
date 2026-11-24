@@ -411,7 +411,7 @@ const initSession = async (branchId, initialQrCount = 0, forceNew = false) => {
             continue;
           }
 
-          // Si el mensaje es propio (fromMe), solo permitirlo si el usuario se está escribiendo a sí mismo (self-chat para pruebas)
+          // Si el mensaje es propio (fromMe), verificar si es self-chat o intervención manual del anfitrión/administrador
           if (msg.key.fromMe) {
             const myPhone = cleanJidUser(sock.user?.id);
             const myLid = cleanJidUser(sock.user?.lid);
@@ -421,6 +421,31 @@ const initSession = async (branchId, initialQrCount = 0, forceNew = false) => {
               (myLid && targetUser === myLid);
 
             if (!isSelfChat) {
+              const outboundText =
+                (typeof content.conversation === 'string' && content.conversation) ||
+                content.extendedTextMessage?.text ||
+                content.imageMessage?.caption ||
+                content.videoMessage?.caption ||
+                content.documentMessage?.caption ||
+                '';
+
+              if (outboundText && /\banfitrion\b/.test(outboundText.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase())) {
+                const isLidTarget = remoteJid.endsWith('@lid');
+                const rawTargetLid = isLidTarget ? cleanJidUser(remoteJid) : cleanJidUser(msg.key.senderLid || '');
+                const altTargetJid = msg.key.remoteJidAlt || msg.key.senderPn || msg.key.participantAlt || '';
+                const realTargetPhone = (altTargetJid && !altTargetJid.endsWith('@lid'))
+                  ? cleanJidUser(altTargetJid)
+                  : (!isLidTarget ? cleanJidUser(remoteJid) : '');
+
+                const { handleOutboundHostTakeover } = require('../controllers/whatsappController');
+                await handleOutboundHostTakeover({
+                  branchId: idStr,
+                  targetNumber: realTargetPhone || rawTargetLid,
+                  lid: rawTargetLid,
+                  contactName: msg.pushName || '',
+                  messageText: outboundText
+                });
+              }
               continue;
             }
           }

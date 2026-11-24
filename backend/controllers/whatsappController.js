@@ -1286,8 +1286,65 @@ const handleIncomingMessage = async (arg1, arg2, arg3, arg4, arg5 = '', arg6 = n
   }
 };
 
+/**
+ * Detecta mensajes salientes manuales del administrador (fromMe) con la palabra clave "anfitrión"
+ * para pausar automáticamente el bot en ese chat y registrar el saludo en el historial.
+ */
+const handleOutboundHostTakeover = async ({ branchId, targetNumber, lid, contactName, messageText }) => {
+  try {
+    if (!branchId || !messageText || typeof messageText !== 'string') return false;
+
+    const normalizedText = messageText
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
+
+    if (!/\banfitrion\b/.test(normalizedText)) {
+      return false;
+    }
+
+    const cleanTarget = normalizePhone(targetNumber || '');
+    const cleanLid = normalizePhone(lid || '');
+    const candidates = Array.from(new Set([cleanTarget, cleanLid].filter(Boolean)));
+    if (candidates.length === 0) return false;
+
+    let conversation = await Conversation.findOne({
+      branch: branchId,
+      customerNumber: { $in: candidates }
+    });
+
+    if (!conversation) {
+      conversation = new Conversation({
+        branch: branchId,
+        customerNumber: cleanTarget || cleanLid,
+        customerName: contactName || undefined,
+        messages: []
+      });
+    } else if (contactName && !conversation.customerName) {
+      conversation.customerName = contactName;
+    }
+
+    conversation.botPausedUntil = new Date('2099-12-31T23:59:59.000Z');
+    conversation.pauseReason = 'manual';
+    conversation.lastInteraction = new Date();
+    conversation.messages.push({
+      role: 'assistant',
+      content: messageText.trim(),
+      timestamp: new Date()
+    });
+
+    await conversation.save();
+    console.log(`⏸️ [Auto-Pausa Anfitrión] Mensaje manual del administrador a ${conversation.customerNumber} (Chat #${conversation.shortId}) contiene "anfitrión". Bot pausado manualmente.`);
+    return true;
+  } catch (err) {
+    console.error('❌ [Auto-Pausa Anfitrión] Error procesando mensaje saliente:', err.message);
+    return false;
+  }
+};
+
 module.exports = { 
   handleIncomingMessage,
+  handleOutboundHostTakeover,
   normalizePhone,
   isPhoneMatch,
   sendOutboundWhatsAppMessage,

@@ -283,11 +283,23 @@ const initSession = async (branchId, forceNew = false) => {
 
       // Si el mensaje fue enviado por la propia cuenta (fromMe):
       // Solo lo procesamos si es un chat consigo mismo para pruebas (ej: escribiéndose a sí mismo)
-      // Si fue enviado a otra persona, es la respuesta saliente del bot -> ignorar para evitar bucle infinito
+      // Si fue enviado a otra persona, verificamos si el administrador usó la palabra clave "anfitrión" para pausar el bot.
       if (msg.fromMe) {
         const isSelfChat = (msg.to === msg.from) || 
                            (client.info?.wid && (msg.to === client.info.wid._serialized || msg.to === client.info.wid.user + '@c.us'));
         if (!isSelfChat) {
+          const outboundText = msg.body || '';
+          if (outboundText && /\banfitrion\b/.test(outboundText.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase())) {
+            const targetRaw = (msg.to || '').replace(/@(c\.us|lid|s\.whatsapp\.net)$/i, '').replace(/[^0-9]/g, '');
+            const { handleOutboundHostTakeover } = require('../controllers/whatsappController');
+            await handleOutboundHostTakeover({
+              branchId,
+              targetNumber: targetRaw,
+              lid: (msg.to && msg.to.includes('@lid')) ? targetRaw : '',
+              contactName: '',
+              messageText: outboundText
+            });
+          }
           return;
         }
       }

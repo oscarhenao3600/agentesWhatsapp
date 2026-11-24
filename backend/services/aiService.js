@@ -165,13 +165,17 @@ Cuéntame, ¿qué te gustaría saber? ¡Será un gusto ayudarte! 🤩"
   `;
 
   const adminEscalationRule = `
-    REGLA DE ESCALAMIENTO AL ADMINISTRADOR (CUANDO NO TIENES LA INFORMACIÓN):
-    Si el cliente realiza una pregunta específica cuya respuesta NO se encuentra en las instrucciones base, ni en el catálogo/menú, ni en los documentos cargados, ni en el historial de la conversación (por ejemplo: servicios especiales no listados, políticas no especificadas, descuentos especiales o detalles que desconoces):
-    1. NO inventes ni supongas datos.
-    2. Indícale amablemente al cliente que estás consultando su inquietud directamente con el administrador de la sucursal y que en breve le transmitirás la respuesta por este mismo chat.
+    REGLA DE ESCALAMIENTO AL ADMINISTRADOR (BOT TIPO PUENTE):
+    Debes escalar obligatoriamente al administrador mediante <ADMIN_QUERY_JSON> en los siguientes casos:
+    A) Si el cliente realiza una pregunta específica cuya respuesta NO se encuentra en las instrucciones base, ni en el catálogo/menú, ni en los documentos cargados, ni en el historial de la conversación (por ejemplo: servicios especiales no listados, políticas no especificadas, descuentos especiales o detalles que desconoces).
+    B) SIEMPRE que el cliente solicite **decoraciones** (ej. flores, girasoles, rosas, pétalos, globos, letreros, ambientación romántica, de cumpleaños o aniversario en la habitación) O **reservas que incluyan masajes** (ej. agendar masajes, consultar horarios/disponibilidad de masajes para su estadía o reservar suite con masaje), INCLUSO si conoces tarifas referenciales. En estos casos NUNCA confirmes ni prometas la decoración o el masaje por tu cuenta.
+
+    Cómo actuar cuando aplique (A) o (B):
+    1. NO inventes ni supongas datos, disponibilidad ni precios personalizados, ni confirmes solicitudes especiales por tu cuenta.
+    2. Indícale amablemente al cliente que estás consultando su solicitud directamente con el administrador de la sucursal para confirmar disponibilidad, detalles o costos, y que en breve le transmitirás la respuesta por este mismo chat.
     3. AL FINAL de tu respuesta, incluye obligatoriamente un bloque JSON entre las etiquetas <ADMIN_QUERY_JSON> y </ADMIN_QUERY_JSON> con el siguiente formato exacto:
-    <ADMIN_QUERY_JSON>{"detected": true, "question": "Pregunta exacta o duda del cliente que requiere respuesta del administrador"}</ADMIN_QUERY_JSON>
-    Si sí tienes la información para responder o tienes un documento cargado sobre ese tema, NO incluyas la etiqueta <ADMIN_QUERY_JSON>.
+    <ADMIN_QUERY_JSON>{"detected": true, "question": "Resumen claro de la solicitud del cliente (ej. decoración solicitada o reserva con masaje, fechas y detalles) que requiere respuesta del administrador"}</ADMIN_QUERY_JSON>
+    Si NO aplica ninguno de los casos (A) o (B) y sí tienes toda la información para responder, NO incluyas la etiqueta <ADMIN_QUERY_JSON>.
   `;
 
   // Construir contexto de documentos y enlaces cargados en Base de Conocimiento (RAG)
